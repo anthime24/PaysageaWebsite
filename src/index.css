@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-nature: #7b9872;
+    --color-structure: #4b463e;
+    --color-action: #b26c2e;
+    --color-bg-light: #fcfcfc;
+  }
+
+  body {
+    @apply bg-[var(--color-bg-light)] text-[var(--color-structure)] antialiased overflow-x-hidden;
+    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-white/70 backdrop-blur-md border border-gray-200/50 shadow-sm;
+  }
+
+  .premium-button {
+    @apply px-6 py-3 rounded-full font-semibold transition-all duration-300 active:scale-95 text-white;
+    background: var(--color-action);
+    box-shadow: 0 4px 15px rgba(178, 108, 46, 0.2);
+  }
+
+  .premium-button:hover {
+    @apply brightness-110 shadow-lg shadow-[#b26c2e]/20;
+  }
+}
+
+/* Premium background animations */
+@keyframes mesh-gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-mesh {
+  background: linear-gradient(-45deg, #fcfcfc, #f8f9f8, #fcfcfc, #f5f7f5);
+  background-size: 400% 400%;
+  animation: mesh-gradient 15s ease infinite;
+}
+
+/* Custom animations for demo */
+@keyframes scan {
+  0% {
+    top: 0%
+  }
+
+  100% {
+    top: 100%
+  }
+}
+
+.scan-line {
+  position: absolute;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-nature), transparent);
+  animation: scan 3s linear infinite;
+  box-shadow: 0 0 15px var(--color-nature);
+}

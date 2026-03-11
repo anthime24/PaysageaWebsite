@@ -1,0 +1,129 @@
+import { useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+    Upload, Sparkles, Waves, Trees, Shovel, Palette,
+    Infinity, Clock, Sprout, Fence, Layout, Sofa,
+    Citrus, Footprints, Droplet, Palmtree, Users, Cloud, Bird,
+    Wind, Flower2, Minimize2, Sun, MessageSquare, Lightbulb
+} from 'lucide-react'
+import useStore from '../store/useStore'
+import AddressSearch from '../components/AddressSearch'
+import PremiumDropdown from '../components/PremiumDropdown'
+import { SUGGESTIONS } from '../data/suggestions'
+
+const UploadPage = () => {
+    const navigate = useNavigate()
+    const { previewUrl, setImage, filters, setFilters, toggleElement, projectContext, setProjectContext, enrichDescription } = useStore()
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0]
+        if (file) setImage(file)
+    }
+
+    const handleResolve = useCallback((context) => {
+        setProjectContext(context)
+    }, [setProjectContext])
+
+    return (
+        <div className="h-full flex flex-col items-center max-w-6xl mx-auto space-y-12 animate-in fade-in duration-700">
+            {/* Address Search Bar - Elegant and Integrated */}
+            <div className="w-full max-w-2xl px-4 z-30">
+                <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg border border-gray-100 p-2 transform hover:scale-[1.01] transition-transform duration-300">
+                    <AddressSearch onResolve={handleResolve} />
+                </div>
+            </div>
+
+            {/* Main Visual Focus - The Garden Image */}
+            <div className="w-full relative px-4">
+                <label className={`
+                    block w-full h-[60vh] rounded-[2.5rem] cursor-pointer transition-all duration-500
+                    ${previewUrl ? 'shadow-2xl' : 'border-2 border-dashed border-gray-200 bg-white/50 hover:bg-white'}
+                    overflow-hidden relative group max-w-5xl mx-auto
+                `}>
+                    <input type="file" className="hidden" onChange={handleFileChange} accept="image/*" />
+
+                    {previewUrl ? (
+                        <div className="relative w-full h-full">
+                            <img src={previewUrl} className="w-full h-full object-cover" alt="Votre Jardin" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                        </div>
+                    ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center space-y-6">
+                            <div className="w-24 h-24 rounded-3xl bg-[var(--color-nature)]/10 flex items-center justify-center text-[var(--color-nature)] animate-pulse">
+                                <Upload size={48} />
+                            </div>
+                            <div className="space-y-2">
+                                <h3 className="text-2xl font-bold tracking-tight text-[var(--color-structure)]">Capturez votre extérieur</h3>
+                                <p className="text-gray-400 max-w-sm">Déposez une photo de votre jardin pour commencer la transformation IA.</p>
+                            </div>
+                            <div className="px-8 py-4 bg-[var(--color-nature)] text-white rounded-2xl font-bold shadow-lg shadow-[#7b9872]/20 hover:scale-105 transition-transform duration-300">
+                                Sélectionner une image
+                            </div>
+                        </div>
+                    )}
+
+                    {previewUrl && (
+                        <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="px-6 py-3 bg-white/90 backdrop-blur text-[var(--color-structure)] rounded-full text-sm font-bold shadow-xl border border-gray-100">
+                                Remplacer l'image
+                            </div>
+                        </div>
+                    )}
+                </label>
+            </div>
+
+            {/* Custom Description Input */}
+            <div className="w-full max-w-4xl px-4 animate-in slide-in-from-bottom-4 duration-1000 delay-100">
+                <div className="relative group">
+                    <div className="absolute -inset-0.5 bg-gradient-to-r from-[var(--color-nature)]/20 to-[var(--color-action)]/20 rounded-3xl blur opacity-30 group-focus-within:opacity-100 transition duration-1000"></div>
+                    <div className="relative bg-white/70 backdrop-blur-xl border border-gray-100 rounded-3xl p-6 shadow-xl space-y-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-[var(--color-nature)]/10 flex items-center justify-center text-[var(--color-nature)]">
+                                <MessageSquare size={20} />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-black text-[var(--color-structure)] uppercase tracking-widest">Décrivez votre jardin idéal</h4>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Vos envies, vos contraintes, vos rêves...</p>
+                            </div>
+                        </div>
+                        <textarea
+                            value={filters.description}
+                            onChange={(e) => setFilters({ description: e.target.value })}
+                            placeholder="Ex: Je souhaite un jardin avec beaucoup de fleurs blanches, un petit coin pour lire à l'ombre et un éclairage tamisé pour le soir..."
+                            className="w-full h-32 bg-transparent border-none focus:ring-0 focus:outline-none text-[var(--color-structure)] placeholder:text-gray-300 resize-none font-medium leading-relaxed"
+                        />
+                    </div>
+                </div>
+
+                {/* Intelligent Suggestions Pills */}
+                <div className="px-2 mt-10">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Lightbulb size={14} className="text-[var(--color-action)]" />
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Idées rapides</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {SUGGESTIONS.ideas.map((idea) => {
+                            const isApplied = filters.appliedSuggestions.includes(idea.id);
+                            return (
+                                <button
+                                    key={idea.id}
+                                    onClick={() => enrichDescription(idea.phrase, idea.id)}
+                                    className={`
+                                        px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300
+                                        ${isApplied 
+                                            ? 'bg-[var(--color-nature)] text-white shadow-md shadow-[#7b9872]/20' 
+                                            : 'bg-white/80 text-gray-400 border border-gray-100 hover:border-[var(--color-nature)]/30 hover:bg-white hover:text-[var(--color-nature)]'}
+                                    `}
+                                >
+                                    {idea.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+export default UploadPage
