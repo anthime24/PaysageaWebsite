@@ -23,6 +23,22 @@ const ProcessingPage = () => {
         }
 
         const runSteps = async () => {
+            // IA BRIDGE: Envoyer le manifeste dès le début du traitement
+            try {
+                const manifest = useStore.getState().getProjectManifest();
+                const API_URL = import.meta.env.VITE_CLIMATE_API_URL || 'http://localhost:3001';
+                
+                fetch(`${API_URL}/api/project/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(manifest)
+                }).then(res => res.json())
+                  .then(data => console.log('[IA BRIDGE] Succès:', data))
+                  .catch(err => console.error('[IA BRIDGE] Erreur:', err));
+            } catch (e) {
+                console.error('[IA BRIDGE] Erreur manifeste:', e);
+            }
+
             for (let i = 0; i < STEPS.length; i++) {
                 setCurrentStep(i)
                 for (let p = 0; p <= 100; p += 5) {

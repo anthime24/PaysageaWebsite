@@ -13,6 +13,7 @@ import express from "express";
 import cors from "cors";
 import NodeCache from "node-cache";
 import "dotenv/config";
+import { writeFileSync, mkdirSync } from "fs";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -338,6 +339,36 @@ app.get("/climate/annual", async (req, res) => {
     console.error("[climate/annual]", err.message);
     res.status(502).json({ error: "Open-Meteo Archive indisponible", detail: err.message });
   }
+});
+
+// ─── ROUTE : IA INTEGRATION BRIDGE ──────────────────────────────────────────
+// POST /api/project/generate
+// Reçoit le manifeste complet pour le RAG et la Génération d'Images
+app.post("/api/project/generate", (req, res) => {
+  const manifest = req.body;
+  
+  console.log("\n🚀 [IA BRIDGE] Nouveau Manifeste Projet Reçu :");
+  console.log(JSON.stringify(manifest, null, 2));
+  console.log("-------------------------------------------\n");
+
+  // ── Sauvegarder dans un fichier JSON accessible par les scripts IA ──
+  try {
+    mkdirSync("./shared", { recursive: true });
+    writeFileSync(
+      "./shared/latest_project.json",
+      JSON.stringify(manifest, null, 2),
+      "utf-8"
+    );
+    console.log("💾 Manifeste sauvegardé → shared/latest_project.json");
+  } catch (err) {
+    console.error("⚠️ Erreur écriture fichier:", err.message);
+  }
+
+  res.json({ 
+    status: "received", 
+    timestamp: new Date().toISOString(),
+    manifest
+  });
 });
 
 // ─── Health check ─────────────────────────────────────────────────────────────

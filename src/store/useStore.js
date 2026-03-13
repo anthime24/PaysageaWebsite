@@ -39,6 +39,39 @@ const useStore = create((set) => ({
         const plantFilter = context ? buildPlantFilter(context) : null
         set({ projectContext: context, plantFilter })
     },
+
+    // HELPER: Construit le manifeste complet pour le RAG / Image Gen
+    getProjectManifest: () => {
+        const state = useStore.getState()
+        return {
+            project_id: state.projectId || 'demo-' + Math.random().toString(36).substr(2, 9),
+            user_intent: {
+                description: state.filters.description,
+                applied_tags: state.filters.appliedSuggestions
+            },
+            environmental_context: {
+                location: state.projectContext?.location,
+                botanical_filter: state.plantFilter,
+                climate_summary: state.projectContext?.annual_profile?.summary
+            }
+        }
+    },
+
+    enrichDescription: (phrase, id) => set((state) => {
+        const currentDesc = state.filters.description.trim()
+        const newDesc = currentDesc ? `${currentDesc}\n${phrase}` : phrase
+        const applied = state.filters.appliedSuggestions.includes(id)
+            ? state.filters.appliedSuggestions
+            : [...state.filters.appliedSuggestions, id]
+        
+        return {
+            filters: {
+                ...state.filters,
+                description: newDesc,
+                appliedSuggestions: applied
+            }
+        }
+    })
 }))
 
 export default useStore
