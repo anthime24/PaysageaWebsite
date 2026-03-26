@@ -13,7 +13,32 @@ import express from "express";
 import cors from "cors";
 import NodeCache from "node-cache";
 import "dotenv/config";
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";
+import multer from "multer";
+import { exec } from "child_process";
+import path from "path";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
+
+// Helper function to extract the LAST valid JSON object from stdout
+function parsePythonOutput(stdout) {
+  const trimmed = stdout.trim();
+  let start = trimmed.lastIndexOf('{');
+  while (start !== -1) {
+    const end = trimmed.lastIndexOf('}');
+    if (end > start) {
+      try {
+        const candidate = trimmed.substring(start, end + 1);
+        return JSON.parse(candidate);
+      } catch (e) {
+        // Not a valid JSON or not the right start, try the previous '{'
+      }
+    }
+    start = trimmed.lastIndexOf('{', start - 1);
+  }
+  throw new Error("Aucun JSON valide trouvé dans la sortie.");
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,6 +55,28 @@ const annualCache = new NodeCache({ stdTTL: 60 * 60 * 24 * 7 });  // 7 jours (do
 
 app.use(cors());
 app.use(express.json());
+
+// ─── CONFIGURATION IA ─────────────────────────────────────────────────────────
+const SAM_DEPTH_ROOT = "C:/Users/anton/Documents/PGE2/Clinique de l'IA/S2/Sam_and_Depth";
+const WORK_DIR = path.join(SAM_DEPTH_ROOT, "work");
+const PYTHON_PATH = "python"; // Assurez-vous que python est dans le PATH
+
+// Créer les dossiers nécessaires
+if (!existsSync("./uploads")) mkdirSync("./uploads");
+if (!existsSync(WORK_DIR)) mkdirSync(WORK_DIR, { recursive: true });
+
+// Servir le dossier work pour accéder aux masques et previews
+app.use('/shared', express.static(SHARED_DIR));
+app.use('/work', express.static(WORK_DIR)); // Permet d'accéder à user_zone.json via http://localhost:3001/work/user_zone.json
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  },
+});
+const upload = multer({ storage });
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
@@ -360,6 +407,34 @@ app.post("/api/project/generate", (req, res) => {
       "utf-8"
     );
     console.log("💾 Manifeste sauvegardé → shared/latest_project.json");
+
+    // Si une zone utilisateur est présente, on l'extrait aussi pour faciliter l'accès aux scripts
+    const userZone = manifest.environmental_context?.user_zone;
+    const imageSize = manifest.environmental_context?.image_size; // [w, h]
+
+    if (userZone && userZone.length > 0) {
+      const zonePath = path.join(WORK_DIR, "user_zone.json");
+      
+      // Conversion des coordonnées normalisées en pixels si on a les dimensions
+      let pointsToSave = userZone;
+      if (imageSize && imageSize.length === 2) {
+        const [w, h] = imageSize;
+        pointsToSave = userZone.map(p => ({
+          x: Math.round(p.x * w),
+          y: Math.round(p.y * h)
+        }));
+        console.log(`📐 Conversion des points en pixels (${w}x${h})`);
+      }
+
+      writeFileSync(zonePath, JSON.stringify({ 
+        image_id: manifest.project_id,
+        image_size: imageSize || null,
+        points: pointsToSave,
+        normalized_points: userZone,
+        created_at: new Date().toISOString()
+      }, null, 2), "utf-8");
+      console.log(`📍 Zone utilisateur sauvegardée → ${zonePath}`);
+    }
   } catch (err) {
     console.error("⚠️ Erreur écriture fichier:", err.message);
   }
@@ -369,6 +444,92 @@ app.post("/api/project/generate", (req, res) => {
     timestamp: new Date().toISOString(),
     manifest
   });
+});
+
+// ─── ROUTE : UPLOAD & PREPROCESS ─────────────────────────────────────────────
+// POST /api/project/upload
+// Reçoit une image et lance preprocess_cli.py
+app.post("/api/project/upload", upload.single("image"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "Aucun fichier envoyé" });
+
+  const inputPath = path.resolve(req.file.path);
+  const scriptPath = path.join(SAM_DEPTH_ROOT, "preprocess_cli.py");
+  
+    console.log(`\n📸 [PREPROCESS] Exécution : "${PYTHON_PATH}" "${scriptPath}" --input "${inputPath}" --out-dir "${WORK_DIR}"`);
+
+  try {
+    const { stdout, stderr } = await execAsync(
+      `"${PYTHON_PATH}" "${scriptPath}" --input "${inputPath}" --out-dir "${WORK_DIR}"`,
+      { env: { ...process.env, PYTHONUTF8: "1" } }
+    );
+
+    if (stdout) console.log("[PREPROCESS STDOUT]", stdout);
+    if (stderr) console.warn("[PREPROCESS STDERR]", stderr);
+    
+    // On extrait uniquement l'objet JSON final de la sortie stdout
+    const result = parsePythonOutput(stdout);
+    
+    // On ajoute l'URL web pour accéder à l'image pré-traitée
+    const preprocessedFilename = path.basename(result.preprocessed_image);
+    result.web_url = `http://localhost:${PORT}/work/${preprocessedFilename}`;
+
+    console.log("✅ Preprocess terminé avec succès.");
+    res.json(result);
+  } catch (err) {
+    console.error("❌ [PREPROCESS ERROR]", err.message);
+    if (err.stdout) console.log("[PREPROCESS FAILED STDOUT]", err.stdout);
+    if (err.stderr) console.error("[PREPROCESS FAILED STDERR]", err.stderr);
+    res.status(500).json({ error: "Erreur lors du prétraitement", details: err.message, stderr: err.stderr });
+  }
+});
+
+// ─── ROUTE : ANALYSE (SAM + DEPTH) ───────────────────────────────────────────
+// POST /api/project/analyze
+// Reçoit le chemin du JSON preprocess et lance sam_depth_cli.py
+app.post("/api/project/analyze", async (req, res) => {
+  const { preprocess_json } = req.body;
+  if (!preprocess_json) return res.status(400).json({ error: "preprocess_json est requis" });
+
+  const scriptPath = path.join(SAM_DEPTH_ROOT, "sam_depth_cli.py");
+  console.log(`\n🧠 [ANALYSE] Exécution : "${PYTHON_PATH}" "${scriptPath}" --preprocess-json "${preprocess_json}" --fuse`);
+
+  try {
+    const { stdout, stderr } = await execAsync(
+      `"${PYTHON_PATH}" "${scriptPath}" --preprocess-json "${preprocess_json}" --fuse`,
+      { 
+        cwd: SAM_DEPTH_ROOT,
+        env: { ...process.env, PYTHONUTF8: "1" }
+      }
+    );
+
+    if (stdout) console.log("[ANALYSE STDOUT]", stdout);
+    if (stderr) console.warn("[ANALYSE STDERR]", stderr);
+
+    // Extraction du JSON
+    const result = parsePythonOutput(stdout);
+
+    if (result.depth_preview) {
+      result.depth_preview_url = `http://localhost:${PORT}/work/${path.basename(result.depth_preview)}`;
+    }
+
+    console.log("✅ Analyse SAM+Depth terminée avec succès.");
+    res.json(result);
+  } catch (err) {
+    console.error("❌ [ANALYSE ERROR]", err.message);
+    if (err.stdout) console.log("[ANALYSE FAILED STDOUT]", err.stdout);
+    if (err.stderr) console.error("[ANALYSE FAILED STDERR]", err.stderr);
+    res.status(500).json({ error: "Erreur lors de l'analyse SAM+Depth", details: err.message, stderr: err.stderr });
+  }
+});
+
+// ─── ROUTE : LIST FILES IN WORK (DEBUG) ─────────────────────────────────────
+app.get("/api/work-files", (req, res) => {
+  try {
+    const files = readdirSync(WORK_DIR);
+    res.json({ work_dir: WORK_DIR, files });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── Health check ─────────────────────────────────────────────────────────────

@@ -1,4 +1,3 @@
-# Paysagea — Climate Module
 
 Pipeline : **Adresse → Nominatim → lat/lon → Open-Meteo → JSON climatique**
 

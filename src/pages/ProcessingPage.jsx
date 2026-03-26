@@ -12,7 +12,7 @@ const STEPS = [
 
 const ProcessingPage = () => {
     const navigate = useNavigate()
-    const { previewUrl, projectContext, setAnalysisResult, setProjectId } = useStore()
+    const { previewUrl, preprocessData, projectContext, setAnalysisResult, setProjectId } = useStore()
     const [currentStep, setCurrentStep] = useState(0)
     const [progress, setProgress] = useState(0)
 
@@ -22,41 +22,67 @@ const ProcessingPage = () => {
             return
         }
 
-        const runSteps = async () => {
-            // IA BRIDGE: Envoyer le manifeste dès le début du traitement
+        const runAnalysis = async () => {
             try {
-                const manifest = useStore.getState().getProjectManifest();
                 const API_URL = import.meta.env.VITE_CLIMATE_API_URL || 'http://localhost:3001';
                 
+                // IA BRIDGE: 1. Envoyer le manifeste complet (RAG/Climat)
+                const manifest = useStore.getState().getProjectManifest();
                 fetch(`${API_URL}/api/project/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(manifest)
-                }).then(res => res.json())
-                  .then(data => console.log('[IA BRIDGE] Succès:', data))
-                  .catch(err => console.error('[IA BRIDGE] Erreur:', err));
-            } catch (e) {
-                console.error('[IA BRIDGE] Erreur manifeste:', e);
-            }
+                }).catch(err => console.error('[IA BRIDGE] Erreur manifeste:', err));
 
-            for (let i = 0; i < STEPS.length; i++) {
-                setCurrentStep(i)
-                for (let p = 0; p <= 100; p += 5) {
-                    setProgress(p)
-                    await new Promise(r => setTimeout(r, STEPS[i].duration / 20))
+                // IA PIPELINE: 2. Lancer SAM + Depth Anyway
+                if (preprocessData?.preprocessed_json) {
+                    console.log("[IA PIPELINE] Lancement de l'analyse réelle...");
+                    
+                    // Simuler une progression visuelle pendant le calcul réel
+                    const progressInterval = setInterval(() => {
+                        setProgress(prev => (prev < 90 ? prev + 2 : prev));
+                    }, 500);
+
+                    const response = await fetch(`${API_URL}/api/project/analyze`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ preprocess_json: preprocessData.preprocessed_json })
+                    });
+
+                    clearInterval(progressInterval);
+                    setProgress(100);
+
+                    if (!response.ok) throw new Error("Erreur lors de l'analyse IA");
+                    
+                    const aiResult = await response.json();
+                    console.log("[IA PIPELINE] Succès:", aiResult);
+
+                    setAnalysisResult({
+                        ...aiResult,
+                        summary: `Analyse terminée : ${aiResult.sam?.num_segments || 'N/A'} zones segmentées.`
+                    });
+                } else {
+                    // Fallback si pas de preprocess (mode démo ou erreur)
+                    for (let i = 0; i < STEPS.length; i++) {
+                        setCurrentStep(i)
+                        for (let p = 0; p <= 100; p += 10) {
+                            setProgress(p)
+                            await new Promise(r => setTimeout(r, STEPS[i].duration / 10))
+                        }
+                    }
                 }
-            }
 
-            setAnalysisResult({
-                summary: "Analyse terminée avec succès. 4 zones identifiées.",
-                zones: ['Gazon', 'Terrasse', 'Bordure Sud']
-            })
-            setProjectId('demo-' + Math.random().toString(36).substr(2, 9))
-            navigate('/result/demo')
+                setProjectId(preprocessData?.image_id || 'demo-' + Math.random().toString(36).substr(2, 9));
+                navigate(`/result/${preprocessData?.image_id || 'demo'}`);
+            } catch (err) {
+                console.error("[IA PIPELINE] Erreur fatale:", err);
+                alert("Erreur lors de l'analyse IA. Assurez-vous que les modèles SAM et Depth sont installés.");
+                navigate('/upload');
+            }
         }
 
-        runSteps()
-    }, [previewUrl, navigate, setAnalysisResult, setProjectId])
+        runAnalysis()
+    }, [previewUrl, preprocessData, navigate, setAnalysisResult, setProjectId])
 
     return (
         <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in duration-700">

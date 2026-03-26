@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Share2, Download, Check, Sparkles, Palette } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Share2, Download, Check, Sparkles } from 'lucide-react'
 import useStore from '../store/useStore'
 
 const ResultPage = () => {
     const navigate = useNavigate()
-    const { previewUrl, filters, projectContext, plantFilter } = useStore()
-    const [showOriginal, setShowOriginal] = useState(false)
+    const { previewUrl, filters, projectContext, plantFilter, analysisResult, preprocessData } = useStore()
+    const [viewMode, setViewMode] = useState('ia') // 'ia', 'original', 'depth'
     const [isEditMode, setIsEditMode] = useState(false)
 
     // In a real app, this would come from the backend.
@@ -21,6 +21,12 @@ const ResultPage = () => {
         a.download = `paysagea-project-${new Date().getTime()}.json`
         a.click()
         URL.revokeObjectURL(url)
+    }
+
+    const getActiveImage = () => {
+        if (viewMode === 'original') return preprocessData?.web_url || previewUrl
+        if (viewMode === 'depth') return analysisResult?.depth_preview_url || previewUrl
+        return analysisResult?.fused_url || transformedUrl
     }
 
     return (
@@ -80,31 +86,25 @@ const ResultPage = () => {
                 <div className="relative h-[calc(100vh-320px)] min-h-[450px] max-h-[750px] rounded-[3rem] overflow-hidden bg-white shadow-2xl border border-gray-100 group">
                     <div className="absolute inset-0 transition-all duration-700 ease-in-out">
                         <img 
-                            src={showOriginal ? previewUrl : transformedUrl} 
-                            className={`w-full h-full object-cover transition-opacity duration-500 ${showOriginal ? 'grayscale-[0.2]' : ''}`} 
+                            src={getActiveImage()} 
+                            className={`w-full h-full object-cover transition-opacity duration-500 ${viewMode === 'original' ? 'grayscale-[0.2]' : ''}`} 
+                            key={viewMode}
                             alt="Garden view" 
                         />
                         
                         <div className="absolute top-8 left-1/2 -translate-x-1/2 flex items-center gap-4 animate-in slide-in-from-top-4 duration-700">
-                            <div className={`px-6 py-3 rounded-2xl font-black text-[10px] tracking-[0.2em] shadow-xl transition-all duration-300 ${!showOriginal ? 'bg-[var(--color-nature)] text-white scale-110' : 'bg-white/50 backdrop-blur text-gray-400 opacity-50'}`}>
-                                PROPOSITION IA
-                            </div>
-                            <div className={`px-6 py-3 rounded-2xl font-black text-[10px] tracking-[0.2em] shadow-xl transition-all duration-300 ${showOriginal ? 'bg-[var(--color-structure)] text-white scale-110' : 'bg-white/50 backdrop-blur text-gray-400 opacity-50'}`}>
-                                ÉTAT INITIAL
-                            </div>
-                        </div>
-
-                        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-30">
-                            <button 
-                                onClick={() => setShowOriginal(!showOriginal)}
-                                className="bg-white/90 backdrop-blur-xl border border-gray-100 px-8 py-4 rounded-full shadow-2xl flex items-center gap-8 group/toggle hover:scale-105 transition-all active:scale-95"
-                            >
-                                <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${showOriginal ? 'text-[var(--color-structure)]' : 'text-gray-300'}`}>Avant</span>
-                                <div className="w-14 h-7 bg-gray-100 rounded-full relative p-0.5 border border-gray-200">
-                                    <div className={`absolute top-0.5 w-6 h-6 rounded-full shadow-lg transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${showOriginal ? 'left-0.5 bg-[var(--color-structure)]' : 'left-[calc(100%-1.625rem)] bg-[var(--color-nature)]'}`} />
-                                </div>
-                                <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${!showOriginal ? 'text-[var(--color-nature)]' : 'text-gray-300'}`}>Après</span>
-                            </button>
+                            {[
+                                { id: 'ia', label: 'IA DESIGN' },
+                                { id: 'original', label: 'PHOTO RÉELLE' }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setViewMode(tab.id)}
+                                    className={`px-6 py-3 rounded-2xl font-black text-[10px] tracking-[0.2em] shadow-xl transition-all duration-300 ${viewMode === tab.id ? 'bg-[var(--color-nature)] text-white scale-110' : 'bg-white/50 backdrop-blur text-gray-400 opacity-50 hover:bg-white/80'}`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>

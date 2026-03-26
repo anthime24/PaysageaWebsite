@@ -1,36 +1,58 @@
 {
-  "project_id": "demo-5y31corhr",
+  "project_id": "demo-d3zs5rsce",
   "user_intent": {
-    "description": "Je souhaite beaucoup de fleur , avec un coin ombré avec quelques fougère et avec peu d'entretien sur le long terme",
+    "description": "parfait",
     "applied_tags": []
   },
   "environmental_context": {
     "location": {
-      "label": "23 Rue du Sentier, 75002 Paris, France",
-      "short_label": "23 Rue du Sentier",
-      "lat": 48.8690433,
-      "lon": 2.3455784,
-      "place_id": "ChIJz7kSKhZu5kcR1wvO-q9RWvs"
+      "label": "Deauville, France",
+      "short_label": "Deauville",
+      "lat": 49.353976,
+      "lon": 0.075122,
+      "place_id": "ChIJcYZXxLrU4UcRUPG8T0gUDAQ"
     },
     "botanical_filter": {
       "usda_zone": 9,
-      "temp_min_local": -6.3,
-      "temp_max_local": 38.7,
+      "temp_min_local": -3.4,
+      "temp_max_local": 31.5,
       "humidity_level": "humid",
       "sun_exposure": "sun",
-      "annual_rain_mm": 745.9,
+      "annual_rain_mm": 994.4,
       "current_month": 3
     },
     "climate_summary": {
-      "temp_mean_annual_c": 13.3,
-      "temp_max_record_c": 38.7,
-      "temp_min_record_c": -6.3,
-      "precip_annual_mm": 745.9,
-      "humidity_annual_pct": 74.5,
-      "sunshine_h_per_day": 8.2,
-      "frost_days_per_year": 22,
+      "temp_mean_annual_c": 12.9,
+      "temp_max_record_c": 31.5,
+      "temp_min_record_c": -3.4,
+      "precip_annual_mm": 994.4,
+      "humidity_annual_pct": 81.1,
+      "sunshine_h_per_day": 8.6,
+      "frost_days_per_year": 10,
       "hardiness_zone": "Zone 9 (méditerranéen)",
       "climate_type": "Océanique tempéré"
-    }
+    },
+    "user_zone": [
+      {
+        "x": 0.16446009959917404,
+        "y": 0.6975554573753809
+      },
+      {
+        "x": 0.1774160897202316,
+        "y": 0.8859361395045688
+      },
+      {
+        "x": 0.453378679298757,
+        "y": 0.8879401893144538
+      },
+      {
+        "x": 0.6062593627272359,
+        "y": 0.7296202543335406
+      },
+      {
+        "x": 0.23183124822867324,
+        "y": 0.6694987600369913
+      }
+    ]
   }
 }

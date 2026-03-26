@@ -16,11 +16,21 @@ const useStore = create((set) => ({
     projectId: null,
     projectContext: null,
     plantFilter: null,
+    preprocessData: null, // Stocke les résultats du preprocess (image_id, web_url, paths)
+    userZone: [], // Liste des points [{x, y}] de la zone plantable (normalisés 0-1)
 
     setImage: (file) => {
         const url = URL.createObjectURL(file)
-        set({ image: file, previewUrl: url })
+        set({ image: file, previewUrl: url, preprocessData: null })
     },
+
+    setPreprocessData: (data) => set({ 
+        preprocessData: data,
+        previewUrl: data.web_url, // On bascule sur l'image pré-traitée
+        userZone: [] // Reset de la zone quand on change d'image ou de preprocess
+    }),
+
+    setUserZone: (zone) => set({ userZone: zone }),
 
     setFilters: (filters) => set((state) => ({
         filters: { ...state.filters, ...filters }
@@ -52,7 +62,9 @@ const useStore = create((set) => ({
             environmental_context: {
                 location: state.projectContext?.location,
                 botanical_filter: state.plantFilter,
-                climate_summary: state.projectContext?.annual_profile?.summary
+                climate_summary: state.projectContext?.annual_profile?.summary,
+                user_zone: state.userZone, // Inclus les points de la zone
+                image_size: state.preprocessData?.image_size // Dimensions [w, h] pour la conversion
             }
         }
     },

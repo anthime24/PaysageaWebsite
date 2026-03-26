@@ -1,23 +1,54 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import {
     Upload, Sparkles, Waves, Trees, Shovel, Palette,
     Infinity, Clock, Sprout, Fence, Layout, Sofa,
     Citrus, Footprints, Droplet, Palmtree, Users, Cloud, Bird,
-    Wind, Flower2, Minimize2, Sun, MessageSquare, Lightbulb
+    Wind, Flower2, Minimize2, Sun, MessageSquare, Lightbulb, MousePointer2
 } from 'lucide-react'
 import useStore from '../store/useStore'
 import AddressSearch from '../components/AddressSearch'
 import PremiumDropdown from '../components/PremiumDropdown'
 import { SUGGESTIONS } from '../data/suggestions'
+import SelectionOverlay from '../components/SelectionOverlay'
 
 const UploadPage = () => {
     const navigate = useNavigate()
-    const { previewUrl, setImage, filters, setFilters, toggleElement, projectContext, setProjectContext, enrichDescription } = useStore()
+    const { previewUrl, setImage, setPreprocessData, filters, setFilters, projectContext, setProjectContext, enrichDescription, userZone } = useStore()
+    const [isUploading, setIsUploading] = useState(false)
+    const [showSelection, setShowSelection] = useState(false)
 
-    const handleFileChange = (e) => {
+    const handleFileChange = async (e) => {
         const file = e.target.files[0]
-        if (file) setImage(file)
+        if (!file) return
+
+        setImage(file)
+        setIsUploading(true)
+
+        // IA BRIDGE: Upload immédiat pour preprocess
+        try {
+            const formData = new FormData()
+            formData.append('image', file)
+
+            const API_URL = import.meta.env.VITE_CLIMATE_API_URL || 'http://localhost:3001'
+            const response = await fetch(`${API_URL}/api/project/upload`, {
+                method: 'POST',
+                body: formData
+            })
+
+            if (!response.ok) throw new Error('Erreur upload/preprocess')
+            
+            const result = await response.json()
+            console.log('✅ Preprocess terminé:', result)
+            setPreprocessData(result)
+        } catch (err) {
+            console.error('❌ Erreur upload:', err)
+            setImage(null) // Reset on error
+            alert("Erreur lors du prétraitement de l'image. Est-ce que le backend est lancé ?")
+        } finally {
+            setIsUploading(false)
+        }
     }
 
     const handleResolve = useCallback((context) => {
@@ -44,8 +75,15 @@ const UploadPage = () => {
 
                     {previewUrl ? (
                         <div className="relative w-full h-full">
-                            <img src={previewUrl} className="w-full h-full object-cover" alt="Votre Jardin" />
+                            <img src={previewUrl} className={`w-full h-full object-cover transition-opacity duration-500 ${isUploading ? 'opacity-30 blur-sm' : 'opacity-100'}`} alt="Votre Jardin" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                            
+                            {isUploading && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center space-y-4">
+                                    <div className="w-12 h-12 border-4 border-[var(--color-nature)] border-t-transparent rounded-full animate-spin" />
+                                    <p className="text-[var(--color-nature)] font-black uppercase tracking-widest text-xs">Optimisation de l'image...</p>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center space-y-6">
@@ -63,14 +101,47 @@ const UploadPage = () => {
                     )}
 
                     {previewUrl && (
-                        <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute top-6 right-6 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {userZone.length > 0 && (
+                                <div className="px-4 py-2 bg-[var(--color-nature)] text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl border border-white/20 flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                                    Zone définie ({userZone.length} pts)
+                                </div>
+                            )}
                             <div className="px-6 py-3 bg-white/90 backdrop-blur text-[var(--color-structure)] rounded-full text-sm font-bold shadow-xl border border-gray-100">
                                 Remplacer l'image
                             </div>
                         </div>
                     )}
                 </label>
+
+                {/* Selection Tool Trigger */}
+                {previewUrl && !isUploading && (
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20"
+                    >
+                        <button 
+                            onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                setShowSelection(true)
+                            }}
+                            className="group flex items-center gap-3 px-8 py-4 bg-white/90 backdrop-blur-xl text-[var(--color-structure)] rounded-2xl font-black uppercase tracking-widest text-xs shadow-2xl border border-white hover:bg-[var(--color-nature)] hover:text-white transition-all duration-300 transform hover:scale-105"
+                        >
+                            <MousePointer2 size={18} className="group-hover:scale-110 transition-transform" />
+                            {userZone.length > 0 ? 'Modifier la zone plantable' : 'Définir la zone plantable'}
+                        </button>
+                    </motion.div>
+                )}
             </div>
+
+            <SelectionOverlay 
+                isOpen={showSelection} 
+                onClose={() => setShowSelection(false)} 
+                imageUrl={previewUrl}
+            />
 
             {/* Custom Description Input */}
             <div className="w-full max-w-4xl px-4 animate-in slide-in-from-bottom-4 duration-1000 delay-100">
