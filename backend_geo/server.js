@@ -59,6 +59,7 @@ app.use(express.json());
 // ─── CONFIGURATION IA ─────────────────────────────────────────────────────────
 const SAM_DEPTH_ROOT = "C:/Users/anton/Documents/PGE2/Clinique de l'IA/S2/Sam_and_Depth";
 const WORK_DIR = path.join(SAM_DEPTH_ROOT, "work");
+const SHARED_DIR = path.join(SAM_DEPTH_ROOT, "shared");
 const PYTHON_PATH = "python"; // Assurez-vous que python est dans le PATH
 
 // Créer les dossiers nécessaires
@@ -68,7 +69,7 @@ if (!existsSync(WORK_DIR)) mkdirSync(WORK_DIR, { recursive: true });
 // Servir le dossier work pour accéder aux masques et previews
 app.use('/shared', express.static(SHARED_DIR));
 app.use('/work', express.static(WORK_DIR)); // Permet d'accéder à user_zone.json via http://localhost:3001/work/user_zone.json
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.resolve('uploads')));
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => {
