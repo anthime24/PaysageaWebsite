@@ -15,7 +15,7 @@ import SelectionOverlay from '../components/SelectionOverlay'
 
 const UploadPage = () => {
     const navigate = useNavigate()
-    const { previewUrl, setImage, setPreprocessData, filters, setFilters, projectContext, setProjectContext, enrichDescription, userZone } = useStore()
+    const { previewUrl, setImage, setPreprocessData, filters, setFilters, projectContext, setProjectContext, enrichDescription, userZone, preprocessData } = useStore()
     const [isUploading, setIsUploading] = useState(false)
     const [showSelection, setShowSelection] = useState(false)
 
@@ -67,15 +67,41 @@ const UploadPage = () => {
             {/* Main Visual Focus - The Garden Image */}
             <div className="w-full relative px-4">
                 <label className={`
-                    block w-full h-[60vh] rounded-[2.5rem] cursor-pointer transition-all duration-500
-                    ${previewUrl ? 'shadow-2xl' : 'border-2 border-dashed border-gray-200 bg-white/50 hover:bg-white'}
+                    block w-full cursor-pointer transition-all duration-500
+                    ${previewUrl ? 'rounded-none shadow-2xl bg-neutral-900 border border-white/10' : 'h-[60vh] rounded-3xl border-2 border-dashed border-gray-200 bg-white/50 hover:bg-white'}
                     overflow-hidden relative group max-w-5xl mx-auto
                 `}>
                     <input type="file" className="hidden" onChange={handleFileChange} accept="image/*" />
 
                     {previewUrl ? (
-                        <div className="relative w-full h-full">
-                            <img src={previewUrl} className={`w-full h-full object-cover transition-opacity duration-500 ${isUploading ? 'opacity-30 blur-sm' : 'opacity-100'}`} alt="Votre Jardin" />
+                        <div className="relative w-full h-full flex items-center justify-center">
+                            <div className="relative w-full shadow-2xl">
+                                <img src={previewUrl} className={`w-full h-auto block transition-opacity duration-500 ${isUploading ? 'opacity-30 blur-sm' : 'opacity-100'}`} alt="Votre Jardin" />
+                                
+                                {/* Visualisation de la zone sélectionnée (grisé hachuré) */}
+                                {!isUploading && userZone.length > 0 && (
+                                    <svg 
+                                        className="absolute inset-0 w-full h-full pointer-events-none" 
+                                        viewBox="0 0 100 100" 
+                                        preserveAspectRatio="none"
+                                    >
+                                        <defs>
+                                            <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                                                <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
+                                            </pattern>
+                                        </defs>
+                                        <polygon
+                                            points={userZone.map(p => `${p.x * 100},${p.y * 100}`).join(' ')}
+                                            fill="url(#hatch)"
+                                            fillOpacity="0.8"
+                                            stroke="rgba(255,255,255,0.5)"
+                                            strokeWidth="0.2"
+                                            className="animate-pulse"
+                                        />
+                                    </svg>
+                                )}
+                            </div>
+                            
                             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
                             
                             {isUploading && (
@@ -193,6 +219,39 @@ const UploadPage = () => {
                     </div>
                 </div>
             </div>
+            {/* ─── BOUTON LANCER L'ANALYSE ─────────────────────────────────── */}
+            {previewUrl && !isUploading && (
+                <div className="w-full max-w-4xl px-4 pb-8">
+                    <button
+                        id="btn-launch-analysis"
+                        onClick={() => navigate('/processing')}
+                        disabled={!previewUrl}
+                        className="
+                            w-full py-5 px-8 rounded-3xl font-black uppercase tracking-widest text-sm
+                            shadow-2xl shadow-[var(--color-nature)]/30 transition-all duration-300
+                            flex items-center justify-center gap-4
+                            bg-gradient-to-r from-[var(--color-nature)] to-[#6a8763]
+                            text-white hover:scale-[1.02] hover:shadow-[var(--color-nature)]/40
+                            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100
+                            relative overflow-hidden group
+                        "
+                    >
+                        <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <Sprout size={22} />
+                        <span>Lancer l&apos;analyse IA</span>
+                        {userZone.length > 0 && (
+                            <span className="ml-2 px-3 py-1 bg-white/20 rounded-full text-[10px] font-black tracking-widest">
+                                Zone définie · {userZone.length} pts
+                            </span>
+                        )}
+                    </button>
+                    {!userZone.length && (
+                        <p className="text-center text-[10px] text-amber-500 font-bold uppercase tracking-widest mt-3">
+                            ⚠ Définissez d&apos;abord votre zone plantable avant de lancer l&apos;analyse
+                        </p>
+                    )}
+                </div>
+            )}
         </div>
     )
 }

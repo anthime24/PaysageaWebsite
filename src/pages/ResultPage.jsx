@@ -1,37 +1,97 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Share2, Download, Check, Sparkles } from 'lucide-react'
+import { ArrowLeft, Download, Check, Sparkles, Wand2, Loader2, AlertCircle, Layers, Eye, EyeOff, Crosshair } from 'lucide-react'
 import useStore from '../store/useStore'
+
+const DEPTH_BAND_LABELS = { back: 'Fond', mid: 'Plan médian', front: 'Premier plan' }
+const DEPTH_BAND_COLORS = { back: '#6366f1', mid: '#10b981', front: '#f59e0b' }
 
 const ResultPage = () => {
     const navigate = useNavigate()
-    const { previewUrl, filters, projectContext, plantFilter, analysisResult, preprocessData } = useStore()
-    const [viewMode, setViewMode] = useState('ia') // 'ia', 'original', 'depth'
-    const [isEditMode, setIsEditMode] = useState(false)
+    const {
+        previewUrl, filters, projectContext, analysisResult, preprocessData,
+        generatedImageUrl, setGeneratedImageUrl, isGenerating, setIsGenerating, plantFilter
+    } = useStore()
 
-    // In a real app, this would come from the backend.
-    const transformedUrl = "https://images.unsplash.com/photo-1558905648-2784464e7237?auto=format&fit=crop&q=80&w=2000"
+    const [viewMode, setViewMode] = useState('original') // 'ia' | 'original'
+    const [genError, setGenError] = useState(null)
+    const [genMeta, setGenMeta] = useState(null) // { segments_used, mask_white_pct, plant_masks[] }
+    const [editMode, setEditMode] = useState(false)
+    const [activeMaskIndex, setActiveMaskIndex] = useState(null) // index du masque visible en overlay
+
+    // ── Génération ──────────────────────────────────────────────────────────
+    const handleGenerateImage = async () => {
+        setIsGenerating(true)
+        setGenError(null)
+        setGenMeta(null)
+        setActiveMaskIndex(null)
+        setViewMode('ia')
+
+        try {
+            const API_URL = import.meta.env.VITE_CLIMATE_API_URL || 'http://localhost:3001'
+            const response = await fetch(`${API_URL}/api/project/generate-image`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    plant_density: filters.maintenance === 'minimal' ? 'low'
+                        : filters.maintenance === 'intensif' ? 'high'
+                        : 'medium',
+                    description: filters.description || '',
+                    seed: Math.floor(Math.random() * 9999),
+                    max_plants: 6,
+                })
+            })
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}))
+                throw new Error(errData.error || `Erreur HTTP ${response.status}`)
+            }
+
+            const result = await response.json()
+            console.log('✅ [IMAGE-GEN] Résultat:', result)
+
+            if (result.web_url) {
+                setGeneratedImageUrl(`${result.web_url}?t=${Date.now()}`)
+                setGenMeta({
+                    segments_used: result.segments_used || 0,
+                    mask_white_pct: result.mask_white_pct || 0,
+                    prompt_preview: result.prompt_preview || '',
+                    pipeline_json: result.pipeline_json_used || '',
+                    plant_masks: result.plant_masks || [],
+                })
+                setViewMode('ia')
+            } else {
+                throw new Error("Pas d'URL dans la réponse du serveur")
+            }
+        } catch (err) {
+            console.error('❌ [IMAGE-GEN] Erreur:', err)
+            setGenError(err.message)
+            setViewMode('original')
+        } finally {
+            setIsGenerating(false)
+        }
+    }
 
     const handleDownload = () => {
-        const data = useStore.getState().getProjectManifest()
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-        const url = URL.createObjectURL(blob)
+        const targetUrl = generatedImageUrl || previewUrl
+        if (!targetUrl) return
         const a = document.createElement('a')
-        a.href = url
-        a.download = `paysagea-project-${new Date().getTime()}.json`
+        a.href = targetUrl
+        a.download = `paysagea-jardin-${new Date().getTime()}.png`
         a.click()
-        URL.revokeObjectURL(url)
     }
 
     const getActiveImage = () => {
-        if (viewMode === 'original') return preprocessData?.web_url || previewUrl
-        if (viewMode === 'depth') return analysisResult?.depth_preview_url || previewUrl
-        return analysisResult?.fused_url || transformedUrl
+        if (viewMode === 'ia') return generatedImageUrl || previewUrl
+        return preprocessData?.web_url || previewUrl
     }
+
+    const activePlantMask = (genMeta?.plant_masks || [])[activeMaskIndex] || null
 
     return (
         <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-1000 pb-20">
-            {/* Header Section */}
+
+            {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                 <div className="space-y-3">
                     <button
@@ -57,86 +117,272 @@ const ResultPage = () => {
                 </div>
 
                 <div className="flex items-center gap-3 w-full md:w-auto">
-                    <button 
-                        onClick={() => setIsEditMode(!isEditMode)}
-                        className={`flex-1 md:flex-none px-6 py-3.5 rounded-2xl shadow-sm transition-all flex items-center gap-2 font-black uppercase tracking-widest text-xs ${isEditMode ? 'bg-[var(--color-nature)] text-white shadow-lg' : 'bg-white border border-gray-100 text-gray-400 hover:text-[var(--color-nature)]'}`}
-                    >
-                        <Sparkles size={18} />
-                        <span>{isEditMode ? 'Quitter Studio' : 'Modifier'}</span>
-                    </button>
-                    <button className="flex-1 md:flex-none p-3.5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all text-gray-400 hover:text-[var(--color-structure)]">
-                        <Share2 size={20} className="mx-auto" />
-                    </button>
                     <button
                         onClick={handleDownload}
-                        className="flex-1 md:flex-none p-3.5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all text-gray-400 hover:text-[var(--color-structure)]"
-                        title="Exporter le Projet"
+                        disabled={isGenerating}
+                        className="flex-1 md:flex-none p-3.5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all text-gray-400 hover:text-[var(--color-structure)] disabled:opacity-40"
+                        title="Télécharger l'image"
                     >
                         <Download size={20} className="mx-auto" />
                     </button>
-                    <button className="flex-[2] md:flex-none premium-button flex items-center justify-center gap-3 py-3.5 px-8">
-                        <RefreshCw size={20} />
-                        <span className="uppercase tracking-widest text-xs font-black">Régénérer</span>
+
+                    {/* Mode édition masques */}
+                    {generatedImageUrl && genMeta?.plant_masks?.length > 0 && (
+                        <button
+                            onClick={() => { setEditMode(e => !e); setActiveMaskIndex(null) }}
+                            className={`flex-1 md:flex-none flex items-center gap-2 px-5 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs transition-all
+                                ${editMode
+                                    ? 'bg-[var(--color-structure)] text-white shadow-lg'
+                                    : 'bg-white border border-gray-100 text-gray-400 hover:text-[var(--color-structure)] shadow-sm'
+                                }`}
+                        >
+                            <Layers size={18} />
+                            <span>{editMode ? 'Fermer' : 'Masques'}</span>
+                        </button>
+                    )}
+
+                    {/* Bouton génération */}
+                    <button
+                        id="btn-generate-garden-ia"
+                        onClick={handleGenerateImage}
+                        disabled={isGenerating}
+                        className={`
+                            flex-[2] md:flex-none flex items-center justify-center gap-3 py-3.5 px-8 rounded-2xl
+                            font-black uppercase tracking-widest text-xs shadow-lg transition-all duration-300
+                            ${isGenerating
+                                ? 'bg-[var(--color-nature)]/60 text-white cursor-not-allowed'
+                                : 'bg-[var(--color-nature)] text-white hover:scale-105 hover:shadow-xl hover:shadow-[var(--color-nature)]/30'
+                            }
+                        `}
+                    >
+                        {isGenerating
+                            ? <><Loader2 size={20} className="animate-spin" /><span>Génération...</span></>
+                            : <><Wand2 size={20} /><span>{generatedImageUrl ? 'Regénérer' : 'Générer le Jardin IA'}</span></>
+                        }
                     </button>
                 </div>
             </div>
 
-            {/* Main Visual Focus */}
+            {/* Error */}
+            {genError && (
+                <div className="flex items-start gap-3 p-5 bg-red-50 border border-red-100 rounded-2xl text-red-600">
+                    <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
+                    <div>
+                        <p className="font-bold text-sm">Erreur lors de la génération</p>
+                        <p className="text-xs mt-1 text-red-400">{genError}</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Layout principal */}
             <div className="max-w-6xl mx-auto w-full space-y-6">
-                <div className="relative h-[calc(100vh-320px)] min-h-[450px] max-h-[750px] rounded-[3rem] overflow-hidden bg-white shadow-2xl border border-gray-100 group">
-                    <div className="absolute inset-0 transition-all duration-700 ease-in-out">
-                        <img 
-                            src={getActiveImage()} 
-                            className={`w-full h-full object-cover transition-opacity duration-500 ${viewMode === 'original' ? 'grayscale-[0.2]' : ''}`} 
-                            key={viewMode}
-                            alt="Garden view" 
+
+                {/* ── Vue image + éditeur de masques ── */}
+                <div className={`grid gap-6 transition-all duration-500 ${editMode ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'}`}>
+
+                    {/* Image principale */}
+                    <div className={`relative rounded-[3rem] overflow-hidden bg-white shadow-2xl border border-gray-100 group
+                        ${editMode ? 'h-[450px] lg:col-span-2' : 'h-[calc(100vh-320px)] min-h-[450px] max-h-[750px]'}`}
+                    >
+                        <img
+                            src={getActiveImage()}
+                            className={`w-full h-full object-cover transition-all duration-500
+                                ${isGenerating ? 'blur-sm scale-105 opacity-50' : 'opacity-100'}
+                            `}
+                            key={viewMode + (generatedImageUrl || '')}
+                            alt="Garden view"
                         />
-                        
+
+                        {/* Overlay masque actif en mode édition */}
+                        {editMode && activePlantMask?.mask_web_url && (
+                            <img
+                                src={`${activePlantMask.mask_web_url}?t=${Date.now()}`}
+                                className="absolute inset-0 w-full h-full object-cover mix-blend-screen opacity-60 pointer-events-none"
+                                alt="Plant mask overlay"
+                            />
+                        )}
+
+                        {/* Overlay chargement */}
+                        {isGenerating && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/30 backdrop-blur-sm">
+                                <div className="p-8 bg-white/95 backdrop-blur-xl shadow-2xl rounded-[2rem] text-center space-y-4 border border-gray-100 max-w-sm">
+                                    <div className="w-16 h-16 rounded-2xl bg-[var(--color-nature)]/10 flex items-center justify-center text-[var(--color-nature)] mx-auto">
+                                        <Wand2 size={32} className="animate-pulse" />
+                                    </div>
+                                    <p className="text-[10px] font-black text-[var(--color-nature)] uppercase tracking-[0.3em]">BFL FLUX Fill PRO · SAM + Depth</p>
+                                    <p className="text-lg font-bold text-[var(--color-structure)]">Génération en cours...</p>
+                                    <p className="text-xs text-gray-400">Analyse SAM et profondeur en cours... L'IA place les plantes selon la structure de la scène.</p>
+                                    <div className="flex items-center justify-center gap-2">
+                                        <Loader2 size={16} className="animate-spin text-[var(--color-nature)]" />
+                                        <span className="text-xs text-gray-400 font-bold">Inpainting guidé par segmentation...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Badge IA */}
+                        {viewMode === 'ia' && generatedImageUrl && !isGenerating && (
+                            <div className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 bg-[var(--color-nature)] text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl border border-white/20">
+                                <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                                Jardin IA · {genMeta?.segments_used || 0} zones SAM
+                            </div>
+                        )}
+
+                        {/* Tabs */}
                         <div className="absolute top-8 left-1/2 -translate-x-1/2 flex items-center gap-4 animate-in slide-in-from-top-4 duration-700">
                             {[
-                                { id: 'ia', label: 'IA DESIGN' },
-                                { id: 'original', label: 'PHOTO RÉELLE' }
+                                { id: 'ia', label: 'IA DESIGN', disabled: !generatedImageUrl },
+                                { id: 'original', label: 'PHOTO RÉELLE', disabled: false }
                             ].map(tab => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setViewMode(tab.id)}
-                                    className={`px-6 py-3 rounded-2xl font-black text-[10px] tracking-[0.2em] shadow-xl transition-all duration-300 ${viewMode === tab.id ? 'bg-[var(--color-nature)] text-white scale-110' : 'bg-white/50 backdrop-blur text-gray-400 opacity-50 hover:bg-white/80'}`}
+                                    onClick={() => !tab.disabled && setViewMode(tab.id)}
+                                    disabled={tab.disabled}
+                                    className={`px-6 py-3 rounded-2xl font-black text-[10px] tracking-[0.2em] shadow-xl transition-all duration-300
+                                        ${viewMode === tab.id
+                                            ? 'bg-[var(--color-nature)] text-white scale-110'
+                                            : tab.disabled
+                                                ? 'bg-white/30 backdrop-blur text-gray-300 cursor-not-allowed opacity-50'
+                                                : 'bg-white/50 backdrop-blur text-gray-400 opacity-50 hover:bg-white/80 hover:opacity-100'
+                                        }`}
                                 >
                                     {tab.label}
+                                    {tab.id === 'ia' && !generatedImageUrl && (
+                                        <span className="ml-1 opacity-60 normal-case">(Non généré)</span>
+                                    )}
                                 </button>
                             ))}
                         </div>
                     </div>
+
+                    {/* ── Panneau masques individuels (mode édition) ── */}
+                    {editMode && (
+                        <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden flex flex-col">
+                            <div className="p-6 border-b border-gray-50">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-[var(--color-nature)]/10 flex items-center justify-center text-[var(--color-nature)]">
+                                        <Layers size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-black text-[var(--color-structure)] text-sm uppercase tracking-widest">Masques Plantes</h3>
+                                        <p className="text-[10px] text-gray-400 font-bold mt-0.5">{genMeta?.plant_masks?.length || 0} zones identifiées par SAM</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                                {(genMeta?.plant_masks || []).map((mask, i) => {
+                                    const color = DEPTH_BAND_COLORS[mask.depth_band] || '#6366f1'
+                                    const label = DEPTH_BAND_LABELS[mask.depth_band] || mask.depth_band
+                                    const isActive = activeMaskIndex === i
+                                    return (
+                                        <button
+                                            key={i}
+                                            onClick={() => setActiveMaskIndex(isActive ? null : i)}
+                                            className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all duration-200 text-left
+                                                ${isActive
+                                                    ? 'border-[var(--color-nature)] bg-[var(--color-nature)]/5 shadow-md'
+                                                    : 'border-transparent bg-stone-50 hover:border-gray-200 hover:bg-white'
+                                                }`}
+                                        >
+                                            {/* Miniature masque */}
+                                            <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 relative">
+                                                <img
+                                                    src={`${mask.mask_web_url}?t=1`}
+                                                    alt={`Masque plante ${i + 1}`}
+                                                    className="w-full h-full object-cover opacity-80"
+                                                    style={{ filter: `hue-rotate(${i * 40}deg) saturate(2)` }}
+                                                />
+                                                {isActive && (
+                                                    <div className="absolute inset-0 bg-[var(--color-nature)]/20 flex items-center justify-center">
+                                                        <Eye size={16} className="text-[var(--color-nature)]" />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <div
+                                                        className="w-2 h-2 rounded-full flex-shrink-0"
+                                                        style={{ backgroundColor: color }}
+                                                    />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{label}</span>
+                                                </div>
+                                                <p className="text-sm font-bold text-[var(--color-structure)]">Plante {i + 1}</p>
+                                                <div className="flex gap-3 mt-1">
+                                                    <span className="text-[10px] text-gray-400">
+                                                        Seg <span className="font-mono text-gray-600">#{mask.segment_id}</span>
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400">
+                                                        Prof: <span className="font-mono text-gray-600">{(mask.mean_depth * 100).toFixed(0)}%</span>
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400">
+                                                        Zone: <span className="font-mono text-gray-600">{(mask.area_ratio * 100).toFixed(1)}%</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex-shrink-0">
+                                                {isActive
+                                                    ? <EyeOff size={16} className="text-[var(--color-nature)]" />
+                                                    : <Eye size={16} className="text-gray-300" />
+                                                }
+                                            </div>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            {activePlantMask && (
+                                <div className="p-4 border-t border-gray-50 bg-stone-50">
+                                    <div className="flex items-center gap-2">
+                                        <Crosshair size={14} className="text-[var(--color-nature)]" />
+                                        <p className="text-[10px] font-black text-[var(--color-nature)] uppercase tracking-widest">
+                                            Plante {activeMaskIndex + 1} — {DEPTH_BAND_LABELS[activePlantMask.depth_band]}
+                                        </p>
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 mt-1">
+                                        Centroïde: ({(activePlantMask.centroid[0] * 100).toFixed(0)}%, {(activePlantMask.centroid[1] * 100).toFixed(0)}%)
+                                        · Profondeur: {(activePlantMask.mean_depth * 100).toFixed(0)}%
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
-                {/* Info Cards Row */}
+                {/* Info Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {/* Botanical Analysis */}
-                    <div className="p-10 bg-white rounded-[3rem] shadow-xl border border-gray-100 space-y-8">
+                    {/* SAM + Depth Stats */}
+                    <div className="p-10 bg-white rounded-[3rem] shadow-xl border border-gray-100 space-y-6">
                         <div className="flex items-center justify-between border-b border-gray-50 pb-6">
-                            <h3 className="text-xl font-black text-[var(--color-structure)] tracking-tight italic">Analyse Bio</h3>
+                            <h3 className="text-xl font-black text-[var(--color-structure)] tracking-tight italic">Analyse IA</h3>
                             <Check className="text-green-500" size={20} />
                         </div>
                         <div className="space-y-4">
                             <div className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl">
-                                <span className="text-xl">☀️</span>
+                                <span className="text-xl">🧩</span>
+                                <div>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Segments SAM utilisés</p>
+                                    <p className="text-sm font-bold text-[var(--color-structure)]">
+                                        {genMeta?.segments_used ?? (analysisResult?.sam?.num_segments || '—')} zones
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl">
+                                <span className="text-xl">📐</span>
+                                <div>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Zone masquée</p>
+                                    <p className="text-sm font-bold text-[var(--color-structure)]">
+                                        {genMeta ? `${genMeta.mask_white_pct}%` : '—'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl">
+                                <span className="text-xl">📊</span>
                                 <div>
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ensoleillement</p>
                                     <p className="text-sm font-bold text-[var(--color-structure)]">{projectContext?.annual_profile?.summary?.sunshine_h_per_day || '6.4'}h/jour</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl">
-                                <span className="text-xl">💧</span>
-                                <div>
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Précipitations</p>
-                                    <p className="text-sm font-bold text-[var(--color-structure)]">{projectContext?.annual_profile?.summary?.precip_annual_mm || '780'}mm/an</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl">
-                                <span className="text-xl">❄️</span>
-                                <div>
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Zone Rusticité</p>
-                                    <p className="text-sm font-bold text-[var(--color-structure)]">{projectContext?.annual_profile?.summary?.hardiness_zone || 'Zone 8'}</p>
                                 </div>
                             </div>
                         </div>
@@ -147,7 +393,7 @@ const ResultPage = () => {
                         <div className="space-y-6">
                             <h3 className="text-xl font-black text-[var(--color-structure)] tracking-tight italic">Intentions</h3>
                             <p className="text-sm text-gray-500 leading-relaxed font-medium">
-                                "{filters.description || 'Design harmonisé basé sur vos préférences méditerranéennes et bioclimatiques.'}"
+                                &ldquo;{filters.description || 'Design harmonisé basé sur vos préférences méditerranéennes et bioclimatiques.'}&rdquo;
                             </p>
                             <div className="flex flex-wrap gap-2">
                                 {filters.appliedSuggestions.map((tag, i) => (
@@ -156,8 +402,15 @@ const ResultPage = () => {
                             </div>
                         </div>
                         <div className="pt-8 border-t border-gray-50">
-                            <button className="w-full premium-button py-4 text-xs font-black uppercase tracking-widest shadow-lg">
-                                Dossier Complet PDF
+                            <button
+                                onClick={handleGenerateImage}
+                                disabled={isGenerating}
+                                className="w-full premium-button py-4 text-xs font-black uppercase tracking-widest shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {isGenerating
+                                    ? <><Loader2 size={16} className="animate-spin" /> Génération...</>
+                                    : <><Wand2 size={16} /> Lancer la génération IA</>
+                                }
                             </button>
                         </div>
                     </div>
@@ -176,62 +429,38 @@ const ResultPage = () => {
                     </div>
                 </div>
 
-                {/* IA BRIDGE DEBUG SECTION */}
-                <div className="mt-12 p-8 glass-panel rounded-[2.5rem] border-white/5 relative overflow-hidden group bg-black/40">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
-                    
-                    <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                                <Sparkles size={20} />
-                            </div>
-                            <div>
-                                <h4 className="text-sm font-black text-white uppercase tracking-widest">Manifeste Projet IA</h4>
-                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Données brutes transmises au RAG & Image Gen</p>
-                            </div>
+                {/* Bandeau succès */}
+                {generatedImageUrl && !isGenerating && (
+                    <div className="p-6 bg-[var(--color-nature)]/5 border border-[var(--color-nature)]/20 rounded-2xl flex items-center gap-4 flex-wrap">
+                        <div className="w-10 h-10 rounded-xl bg-[var(--color-nature)]/10 flex items-center justify-center text-[var(--color-nature)] flex-shrink-0">
+                            <Check size={20} />
                         </div>
-                        <div className="px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-full text-[10px] font-bold uppercase tracking-widest animate-pulse">
-                            Bridge Actif
+                        <div className="flex-1">
+                            <p className="text-sm font-black text-[var(--color-nature)] uppercase tracking-widest">
+                                Jardin généré · {genMeta?.segments_used || 0} zones SAM · {genMeta?.plant_masks?.length || 0} masques plantes
+                            </p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                                Pipeline: <span className="font-mono">{genMeta?.pipeline_json}</span>
+                            </p>
                         </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="space-y-4">
-                            <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] border-b border-primary/10 pb-2">Visual Base</p>
-                            <div className="space-y-2">
-                                <p className="text-xs text-gray-400">Style: <span className="text-white font-mono">{filters.style}</span></p>
-                                <p className="text-xs text-gray-400">Éléments: <span className="text-white font-mono">{filters.elements.join(', ') || 'aucun'}</span></p>
-                                <p className="text-xs text-gray-400">Maintenance: <span className="text-white font-mono">{filters.maintenance}</span></p>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] border-b border-primary/10 pb-2">User Intent</p>
-                            <div className="space-y-2">
-                                <p className="text-xs text-gray-300 italic line-clamp-2">"{filters.description || 'Pas de description'}"</p>
-                                <p className="text-[10px] text-gray-500">Tags: {filters.appliedSuggestions.join(', ') || '—'}</p>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] border-b border-primary/10 pb-2">Environment</p>
-                            <div className="space-y-2">
-                                <p className="text-xs text-gray-400">USDA Zone: <span className="text-white font-mono">{plantFilter?.usda_zone || '—'}</span></p>
-                                <p className="text-xs text-gray-400">Pluie: <span className="text-white font-mono">{plantFilter?.annual_rain_mm}mm</span></p>
-                                <p className="text-xs text-gray-400">Lat/Lon: <span className="text-white font-mono">{projectContext?.location?.lat.toFixed(2)}, {projectContext?.location?.lon.toFixed(2)}</span></p>
-                            </div>
+                        <div className="flex gap-3">
+                            {genMeta?.plant_masks?.length > 0 && (
+                                <button
+                                    onClick={() => { setEditMode(true); setViewMode('ia') }}
+                                    className="px-4 py-2 bg-[var(--color-structure)] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-1.5"
+                                >
+                                    <Layers size={14} /> Mode édition
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setViewMode('ia')}
+                                className="px-4 py-2 bg-[var(--color-nature)] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-transform"
+                            >
+                                Voir l&apos;image
+                            </button>
                         </div>
                     </div>
-
-                    <div className="mt-8 flex justify-end">
-                        <button 
-                            onClick={() => console.log('[MANIFEST DEBUG]', useStore.getState().getProjectManifest())}
-                            className="text-[10px] font-black text-gray-400 hover:text-primary uppercase tracking-widest transition-colors"
-                        >
-                            Inspecter l'objet complet (Console JS) ↗
-                        </button>
-                    </div>
-                </div>
+                )}
             </div>
         </div>
     )

@@ -18,6 +18,9 @@ const useStore = create((set) => ({
     plantFilter: null,
     preprocessData: null, // Stocke les résultats du preprocess (image_id, web_url, paths)
     userZone: [], // Liste des points [{x, y}] de la zone plantable (normalisés 0-1)
+    generatedImageUrl: null, // URL de l'image finale générée par BFL
+    isGenerating: false, // true pendant l'appel generate-image
+
 
     setImage: (file) => {
         const url = URL.createObjectURL(file)
@@ -31,6 +34,9 @@ const useStore = create((set) => ({
     }),
 
     setUserZone: (zone) => set({ userZone: zone }),
+
+    setGeneratedImageUrl: (url) => set({ generatedImageUrl: url }),
+    setIsGenerating: (val) => set({ isGenerating: val }),
 
     setFilters: (filters) => set((state) => ({
         filters: { ...state.filters, ...filters }
@@ -59,12 +65,15 @@ const useStore = create((set) => ({
                 description: state.filters.description,
                 applied_tags: state.filters.appliedSuggestions
             },
+            visual_context: {
+                image_url: state.preprocessData?.web_url || state.previewUrl,
+                user_zone: state.userZone, // Les points dessinés par l'utilisateur
+                image_size: state.preprocessData?.image_size // Dimensions [w, h] pour repère
+            },
             environmental_context: {
                 location: state.projectContext?.location,
                 botanical_filter: state.plantFilter,
-                climate_summary: state.projectContext?.annual_profile?.summary,
-                user_zone: state.userZone, // Inclus les points de la zone
-                image_size: state.preprocessData?.image_size // Dimensions [w, h] pour la conversion
+                climate_summary: state.projectContext?.annual_profile?.summary
             }
         }
     },

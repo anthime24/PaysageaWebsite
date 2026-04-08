@@ -62,6 +62,10 @@ const WORK_DIR = path.join(SAM_DEPTH_ROOT, "work");
 const SHARED_DIR = path.join(SAM_DEPTH_ROOT, "shared");
 const PYTHON_PATH = "python"; // Assurez-vous que python est dans le PATH
 
+// ─── CONFIGURATION GÉNÉRATION IMAGE IA (garden_ia_3) ─────────────────────────
+const GARDEN_IA_3_ROOT = "C:/Users/anton/Documents/PGE2/Clinique de l'IA/S2/zone/final/garden_ia_3";
+const GARDEN_CLI_SCRIPT = path.join(GARDEN_IA_3_ROOT, "generate_garden_cli.py");
+
 // Créer les dossiers nécessaires
 if (!existsSync("./uploads")) mkdirSync("./uploads");
 if (!existsSync(WORK_DIR)) mkdirSync(WORK_DIR, { recursive: true });
@@ -396,45 +400,50 @@ app.post("/api/project/generate", (req, res) => {
   const manifest = req.body;
   
   console.log("\n🚀 [IA BRIDGE] Nouveau Manifeste Projet Reçu :");
-  console.log(JSON.stringify(manifest, null, 2));
+  console.log(`   project_id: ${manifest.project_id}`);
+  console.log(`   user_zone:  ${manifest.visual_context?.user_zone?.length || 0} points`);
+  console.log(`   image_url:  ${manifest.visual_context?.image_url}`);
   console.log("-------------------------------------------\n");
 
-  // ── Sauvegarder dans un fichier JSON accessible par les scripts IA ──
+  // ── Sauvegarder dans shared/latest_project.json (accès par scripts IA) ──
   try {
-    mkdirSync("./shared", { recursive: true });
+    mkdirSync(SHARED_DIR, { recursive: true });
     writeFileSync(
-      "./shared/latest_project.json",
+      path.join(SHARED_DIR, "latest_project.json"),
       JSON.stringify(manifest, null, 2),
       "utf-8"
     );
-    console.log("💾 Manifeste sauvegardé → shared/latest_project.json");
+    console.log(`💾 Manifeste sauvegardé localement → ${path.join(SHARED_DIR, "latest_project.json")}`);
 
-    // Si une zone utilisateur est présente, on l'extrait aussi pour faciliter l'accès aux scripts
-    const userZone = manifest.environmental_context?.user_zone;
-    const imageSize = manifest.environmental_context?.image_size; // [w, h]
+    // ── Extraire et sauvegarder user_zone dans work/user_zone.json ──────────
+    // Les points sont dans visual_context.user_zone (coordonnées normalisées 0-1)
+    const userZone = manifest.visual_context?.user_zone;
+    const imageSize = manifest.visual_context?.image_size; // [w, h] si disponible
 
-    if (userZone && userZone.length > 0) {
+    if (userZone && Array.isArray(userZone) && userZone.length > 0) {
       const zonePath = path.join(WORK_DIR, "user_zone.json");
       
-      // Conversion des coordonnées normalisées en pixels si on a les dimensions
-      let pointsToSave = userZone;
-      if (imageSize && imageSize.length === 2) {
+      // Conversion en pixels si les dimensions sont disponibles
+      let pointsPx = userZone;
+      if (imageSize && Array.isArray(imageSize) && imageSize.length === 2) {
         const [w, h] = imageSize;
-        pointsToSave = userZone.map(p => ({
+        pointsPx = userZone.map(p => ({
           x: Math.round(p.x * w),
           y: Math.round(p.y * h)
         }));
-        console.log(`📐 Conversion des points en pixels (${w}x${h})`);
+        console.log(`📐 Zone convertie en pixels (${w}x${h})`);
       }
 
       writeFileSync(zonePath, JSON.stringify({ 
         image_id: manifest.project_id,
         image_size: imageSize || null,
-        points: pointsToSave,
+        points: pointsPx,
         normalized_points: userZone,
         created_at: new Date().toISOString()
       }, null, 2), "utf-8");
-      console.log(`📍 Zone utilisateur sauvegardée → ${zonePath}`);
+      console.log(`📍 Zone utilisateur sauvegardée → work/user_zone.json (${userZone.length} pts)`);
+    } else {
+      console.log("ℹ️  Pas de user_zone dans le manifeste — user_zone.json non mis à jour");
     }
   } catch (err) {
     console.error("⚠️ Erreur écriture fichier:", err.message);
@@ -443,9 +452,10 @@ app.post("/api/project/generate", (req, res) => {
   res.json({ 
     status: "received", 
     timestamp: new Date().toISOString(),
-    manifest
+    project_id: manifest.project_id,
   });
 });
+
 
 // ─── ROUTE : UPLOAD & PREPROCESS ─────────────────────────────────────────────
 // POST /api/project/upload
@@ -484,42 +494,102 @@ app.post("/api/project/upload", upload.single("image"), async (req, res) => {
   }
 });
 
+// ─── JOB STORE : suivi des analyses en arrière-plan ─────────────────────────────
+// Garde en mémoire les jobs d'analyse en cours et terminés
+const analysisJobs = new Map(); // job_id -> { status, result, error, startedAt }
+
 // ─── ROUTE : ANALYSE (SAM + DEPTH) ───────────────────────────────────────────
 // POST /api/project/analyze
-// Reçoit le chemin du JSON preprocess et lance sam_depth_cli.py
+// Lance l'analyse SAM+Depth en FOND (non-bloquant) et retourne un job_id
+// Le client interroge ensuite GET /api/project/analyze-status/:job_id
 app.post("/api/project/analyze", async (req, res) => {
   const { preprocess_json } = req.body;
   if (!preprocess_json) return res.status(400).json({ error: "preprocess_json est requis" });
 
   const scriptPath = path.join(SAM_DEPTH_ROOT, "sam_depth_cli.py");
-  console.log(`\n🧠 [ANALYSE] Exécution : "${PYTHON_PATH}" "${scriptPath}" --preprocess-json "${preprocess_json}" --fuse`);
+  const cmd = `"${PYTHON_PATH}" "${scriptPath}" --preprocess-json "${preprocess_json}" --fuse`;
+
+  const jobId = `job_${Date.now()}`;
+  analysisJobs.set(jobId, { status: "running", result: null, error: null, startedAt: Date.now() });
+
+  console.log(`\n🧠 [ANALYSE] Job ${jobId} démarré`);
+  console.log(`   Commande: ${cmd}`);
+  console.log(`   (⏳ SAM ViT-H + Depth Anything... peut prendre 3-10 min)`);
+
+  // Lancer en FOND - ne pas await ici
+  execAsync(cmd, { 
+    cwd: SAM_DEPTH_ROOT,
+    env: { ...process.env, PYTHONUTF8: "1" },
+    timeout: 15 * 60 * 1000,
+    maxBuffer: 200 * 1024 * 1024,
+  }).then(({ stdout, stderr }) => {
+    if (stderr) console.warn(`[ANALYSE ${jobId} STDERR]`, stderr.substring(0, 500));
+
+    try {
+      const result = parsePythonOutput(stdout);
+      if (result.depth_preview) {
+        result.depth_preview_url = `http://localhost:${PORT}/work/${path.basename(result.depth_preview)}`;
+      }
+      if (result.merged_pipeline_json) {
+        result.pipeline_json_path = result.merged_pipeline_json;
+      }
+      analysisJobs.set(jobId, { status: "done", result, error: null, startedAt: analysisJobs.get(jobId).startedAt });
+      console.log(`✅ [ANALYSE ${jobId}] Terminée avec succès.`);
+    } catch (e) {
+      analysisJobs.set(jobId, { status: "error", result: null, error: `Parse error: ${e.message}. Stdout: ${stdout?.substring(0, 300)}`, startedAt: analysisJobs.get(jobId).startedAt });
+      console.error(`❌ [ANALYSE ${jobId}] Erreur parsing:`, e.message);
+    }
+  }).catch(err => {
+    const isTimeout = err.killed || (err.message || '').includes('timeout');
+    const errMsg = isTimeout ? 'Timeout (>15min): SAM/Depth Anything trop lent ou non installé.' : err.message;
+    if (err.stderr) console.error(`[ANALYSE ${jobId} STDERR]`, err.stderr.substring(0, 800));
+    analysisJobs.set(jobId, { status: "error", result: null, error: errMsg, startedAt: analysisJobs.get(jobId).startedAt });
+    console.error(`❌ [ANALYSE ${jobId}] Erreur:`, errMsg);
+  });
+
+  // Répondre immédiatement avec le job_id
+  res.json({ status: "started", job_id: jobId });
+});
+
+// ─── ROUTE : STATUT D'UNE ANALYSE ───────────────────────────────────────────────
+// GET /api/project/analyze-status/:job_id
+// Pollé par le frontend toutes les 5s pour savoir si l'analyse est terminée
+app.get("/api/project/analyze-status/:jobId", (req, res) => {
+  const job = analysisJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job inconnu" });
+  const elapsed = Math.round((Date.now() - job.startedAt) / 1000);
+  res.json({ ...job, elapsed_s: elapsed });
+});
+
+
+
+// ─── ROUTE : SAUVEGARDER LA ZONE UTILISATEUR ────────────────────────────────
+// POST /api/project/save-zone
+// Sauvegarde immédiatement user_zone.json dans WORK_DIR
+// Appelé par le frontend dès que l'utilisateur valide sa zone
+app.post("/api/project/save-zone", (req, res) => {
+  const { points, normalized_points, image_size, image_id } = req.body || {};
+
+  if (!normalized_points || !Array.isArray(normalized_points) || normalized_points.length < 3) {
+    return res.status(400).json({ error: "normalized_points requis (minimum 3 points)" });
+  }
+
+  const zonePath = path.join(WORK_DIR, "user_zone.json");
+  const payload = {
+    image_id: image_id || "unknown",
+    image_size: image_size || null,
+    points: points || normalized_points, // pixels si fournis, sinon normalisés
+    normalized_points,
+    created_at: new Date().toISOString()
+  };
 
   try {
-    const { stdout, stderr } = await execAsync(
-      `"${PYTHON_PATH}" "${scriptPath}" --preprocess-json "${preprocess_json}" --fuse`,
-      { 
-        cwd: SAM_DEPTH_ROOT,
-        env: { ...process.env, PYTHONUTF8: "1" }
-      }
-    );
-
-    if (stdout) console.log("[ANALYSE STDOUT]", stdout);
-    if (stderr) console.warn("[ANALYSE STDERR]", stderr);
-
-    // Extraction du JSON
-    const result = parsePythonOutput(stdout);
-
-    if (result.depth_preview) {
-      result.depth_preview_url = `http://localhost:${PORT}/work/${path.basename(result.depth_preview)}`;
-    }
-
-    console.log("✅ Analyse SAM+Depth terminée avec succès.");
-    res.json(result);
+    writeFileSync(zonePath, JSON.stringify(payload, null, 2), "utf-8");
+    console.log(`📍 [SAVE-ZONE] Zone sauvegardée → work/user_zone.json (${normalized_points.length} pts)`);
+    res.json({ status: "saved", points_count: normalized_points.length, path: zonePath });
   } catch (err) {
-    console.error("❌ [ANALYSE ERROR]", err.message);
-    if (err.stdout) console.log("[ANALYSE FAILED STDOUT]", err.stdout);
-    if (err.stderr) console.error("[ANALYSE FAILED STDERR]", err.stderr);
-    res.status(500).json({ error: "Erreur lors de l'analyse SAM+Depth", details: err.message, stderr: err.stderr });
+    console.error("❌ [SAVE-ZONE ERROR]", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -533,7 +603,121 @@ app.get("/api/work-files", (req, res) => {
   }
 });
 
-// ─── Health check ─────────────────────────────────────────────────────────────
+// ─── ROUTE : GÉNÉRATION IMAGE IA (BFL FLUX Fill PRO + SAM/Depth) ────────────
+// POST /api/project/generate-image
+// Utilise pipeline_result.json (SAM + Depth) + user_zone.json depuis WORK_DIR
+// Lance generate_garden_cli.py et retourne l'URL + masques individuels des plantes
+app.post("/api/project/generate-image", async (req, res) => {
+  const {
+    plant_density = "medium",
+    description = "",
+    seed = 42,
+    max_plants = 6,
+    pipeline_json = "",   // chemin complet optionnel, auto-detect si vide
+  } = req.body || {};
+
+  const zoneJson  = path.join(WORK_DIR, "user_zone.json");
+  const bflApiKey = process.env.BFL_API_KEY || "";
+
+  // Vérifications
+  if (!existsSync(zoneJson)) {
+    return res.status(400).json({
+      error: "user_zone.json introuvable dans work/. Définissez d'abord la zone plantable."
+    });
+  }
+  if (!bflApiKey && process.env.MOCK_BFL?.toLowerCase() !== "true") {
+    return res.status(400).json({
+      error: "BFL_API_KEY non définie dans .env. Ajoutez BFL_API_KEY=votre_cle dans backend_geo/.env"
+    });
+  }
+
+  // Auto-detect le pipeline_result.json le plus récent si non fourni
+  let pipelineJsonPath = pipeline_json;
+  if (!pipelineJsonPath || !existsSync(pipelineJsonPath)) {
+    try {
+      const workFiles = readdirSync(WORK_DIR);
+      const { statSync } = await import("fs");
+      const pipelineFiles = workFiles
+        .filter(f => f.endsWith("_pipeline_result.json"))
+        .map(f => ({ name: f, mtime: statSync(path.join(WORK_DIR, f)).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime);
+
+      if (pipelineFiles.length > 0) {
+        pipelineJsonPath = path.join(WORK_DIR, pipelineFiles[0].name);
+        console.log(`   Auto-detect pipeline: ${pipelineFiles[0].name}`);
+      } else {
+        return res.status(400).json({
+          error: "Aucun fichier *_pipeline_result.json trouvé dans work/. Lancez d'abord l'analyse SAM+Depth."
+        });
+      }
+    } catch(e) {
+      return res.status(500).json({ error: `Erreur lecture work dir: ${e.message}` });
+    }
+  }
+
+
+  const cmd = [
+    `"${PYTHON_PATH}"`,
+    `"${GARDEN_CLI_SCRIPT}"`,
+    `--work-dir "${WORK_DIR}"`,
+    `--pipeline-json "${pipelineJsonPath}"`,
+    `--plant-density "${plant_density}"`,
+    `--max-plants ${parseInt(max_plants) || 6}`,
+    `--seed ${parseInt(seed) || 42}`,
+    description ? `--prompt "${description.replace(/"/g, "'").substring(0, 300)}"` : "",
+  ].filter(Boolean).join(" ");
+
+  console.log(`\n🌿 [IMAGE-GEN] Démarrage génération BFL (SAM+Depth)...`);
+  console.log(`   Plant density : ${plant_density} | Max plants: ${max_plants} | Seed: ${seed}`);
+  console.log(`   Pipeline JSON : ${path.basename(pipelineJsonPath)}`);
+  console.log(`   BFL_API_KEY   : ${bflApiKey ? `présente (${bflApiKey.length} chars)` : "absente (mode MOCK)"}`);
+
+  try {
+    const { stdout, stderr } = await execAsync(cmd, {
+      cwd: GARDEN_IA_3_ROOT,
+      env: {
+        ...process.env,
+        PYTHONUTF8: "1",
+        BFL_API_KEY: bflApiKey,
+        PYTHONPATH: GARDEN_IA_3_ROOT,
+      },
+      timeout: 5 * 60 * 1000, // 5 minutes max (BFL peut prendre 60s)
+    });
+
+    if (stdout) console.log("[IMAGE-GEN STDOUT]", stdout.substring(0, 800));
+    if (stderr) console.warn("[IMAGE-GEN STDERR]", stderr.substring(0, 300));
+
+    const result = parsePythonOutput(stdout);
+
+    // URLs web accessibles depuis le frontend
+    const outputFilename = result.output_filename || "final_garden.png";
+    result.web_url = `http://localhost:${PORT}/work/${outputFilename}`;
+
+    // URLs des masques individuels (mode édition)
+    if (result.plant_masks && Array.isArray(result.plant_masks)) {
+      result.plant_masks = result.plant_masks.map(m => ({
+        ...m,
+        mask_web_url: `http://localhost:${PORT}/work/masks/${m.mask_file}`,
+      }));
+    }
+
+    console.log(`✅ [IMAGE-GEN] Génération terminée → ${result.web_url}`);
+    console.log(`   Segments utilisés: ${result.segments_used || 0} | Masques: ${result.plant_masks?.length || 0}`);
+    res.json(result);
+
+  } catch (err) {
+    console.error("❌ [IMAGE-GEN ERROR]", err.message);
+    if (err.stdout) console.log("[IMAGE-GEN FAILED STDOUT]", err.stdout.substring(0, 600));
+    if (err.stderr) console.error("[IMAGE-GEN FAILED STDERR]", err.stderr.substring(0, 300));
+    res.status(500).json({
+      error: "Erreur lors de la génération d'image",
+      details: err.message,
+      stderr: err.stderr?.substring(0, 500),
+    });
+  }
+});
+
+
 app.get("/health", (_req, res) => res.json({ status: "ok", ts: new Date().toISOString() }));
 
 app.listen(PORT, () => console.log(`Paysagea Climate API → http://localhost:${PORT}`));

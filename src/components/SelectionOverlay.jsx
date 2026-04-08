@@ -37,10 +37,28 @@ const SelectionOverlay = ({ isOpen, onClose, imageUrl }) => {
         setPoints([])
     }
 
-    const handleValidate = () => {
+    const handleValidate = async () => {
         setUserZone(points)
+
+        // Sauvegarder immédiatement sur le backend
+        try {
+            const API_URL = import.meta.env?.VITE_CLIMATE_API_URL || 'http://localhost:3001'
+            await fetch(`${API_URL}/api/project/save-zone`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    normalized_points: points,
+                    image_id: 'user-defined',
+                })
+            })
+            console.log('✅ Zone sauvegardée sur le backend')
+        } catch (err) {
+            console.warn('⚠️ Zone sauvegardée localement seulement (backend inaccessible):', err.message)
+        }
+
         onClose()
     }
+
 
     if (!isOpen) return null
 
@@ -61,7 +79,7 @@ const SelectionOverlay = ({ isOpen, onClose, imageUrl }) => {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="relative max-w-[95vw] max-h-[95vh] bg-[#1a1a1a] rounded-3xl border border-white/10 shadow-3xl flex flex-col overflow-hidden"
+                    className="relative max-w-[95vw] max-h-[95vh] bg-[#1a1a1a] rounded-none border border-white/10 shadow-3xl flex flex-col overflow-hidden"
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Header */}
