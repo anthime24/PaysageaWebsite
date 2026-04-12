@@ -29,6 +29,18 @@ const ResultPage = () => {
 
         try {
             const API_URL = import.meta.env.VITE_CLIMATE_API_URL || 'http://localhost:3001'
+
+            // MODE TEST : injecter le RAG mock avant la génération
+            // Désactivé en prod quand le RAG du collègue appellera /api/project/rag-output lui-même
+            if (import.meta.env.VITE_MOCK_RAG === 'true') {
+                const mockRag = await fetch('/mock_rag_output.json').then(r => r.json())
+                await fetch(`${API_URL}/api/project/rag-output`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(mockRag),
+                })
+            }
+
             const response = await fetch(`${API_URL}/api/project/generate-image`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

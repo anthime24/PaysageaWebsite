@@ -603,6 +603,34 @@ app.get("/api/work-files", (req, res) => {
   }
 });
 
+// ─── ROUTE : RÉCEPTION RÉSULTAT RAG ─────────────────────────────────────────
+// POST /api/project/rag-output
+// Reçoit le JSON de plantes recommandées (produit par le RAG collègue ou mock)
+// et le sauvegarde dans work/rag_output.json pour generate_garden_cli.py
+app.post("/api/project/rag-output", (req, res) => {
+  const ragData = req.body;
+  if (!ragData || typeof ragData !== "object") {
+    return res.status(400).json({ error: "Corps JSON invalide" });
+  }
+
+  // Accepte les clés "jardin" ou "garden" (les deux formats)
+  const plants = ragData.jardin || ragData.garden || ragData.plants;
+  if (!Array.isArray(plants) || plants.length === 0) {
+    return res.status(400).json({ error: "Aucune plante trouvée (clés attendues: jardin, garden, ou plants)" });
+  }
+
+  try {
+    mkdirSync(WORK_DIR, { recursive: true });
+    const outPath = path.join(WORK_DIR, "rag_output.json");
+    writeFileSync(outPath, JSON.stringify(ragData, null, 2), "utf-8");
+    console.log(`\n🌿 [RAG-OUTPUT] ${plants.length} plantes sauvegardées → work/rag_output.json`);
+    res.json({ status: "ok", plant_count: plants.length, path: outPath });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // ─── ROUTE : GÉNÉRATION IMAGE IA (BFL FLUX Fill PRO + SAM/Depth) ────────────
 // POST /api/project/generate-image
 // Utilise pipeline_result.json (SAM + Depth) + user_zone.json depuis WORK_DIR
@@ -684,8 +712,8 @@ app.post("/api/project/generate-image", async (req, res) => {
       timeout: 5 * 60 * 1000, // 5 minutes max (BFL peut prendre 60s)
     });
 
-    if (stdout) console.log("[IMAGE-GEN STDOUT]", stdout.substring(0, 800));
-    if (stderr) console.warn("[IMAGE-GEN STDERR]", stderr.substring(0, 300));
+    if (stdout) console.log("[IMAGE-GEN STDOUT]", stdout.substring(0, 3000));
+    if (stderr) console.warn("[IMAGE-GEN STDERR]", stderr.substring(0, 600));
 
     const result = parsePythonOutput(stdout);
 
