@@ -30,15 +30,41 @@ const ResultPage = () => {
         try {
             const API_URL = import.meta.env.VITE_CLIMATE_API_URL || 'http://localhost:3001'
 
-            // MODE TEST : injecter le RAG mock avant la génération
-            // Désactivé en prod quand le RAG du collègue appellera /api/project/rag-output lui-même
-            if (import.meta.env.VITE_MOCK_RAG === 'true') {
-                const mockRag = await fetch('/mock_rag_output.json').then(r => r.json())
-                await fetch(`${API_URL}/api/project/rag-output`, {
+            // ── Étape 1 : appel RAG pour obtenir les plantes recommandées ────
+            const annualSummary = projectContext?.annual_profile?.summary || {}
+            // Mappe sun_exposure buildPlantFilter ("sun"/"partial"/"shade") → RAG ("plein_soleil"/"mi_ombre"/"ombre")
+            const sunMap = { sun: 'plein_soleil', partial: 'mi_ombre', shade: 'ombre' }
+            const exposition = sunMap[plantFilter?.sun_exposure] || 'plein_soleil'
+            // Détecte le type de climat depuis le résumé annuel
+            const climateRaw = (annualSummary.climate_type || annualSummary.hardiness_zone || '').toLowerCase()
+            const climat = climateRaw.includes('médit') || climateRaw.includes('medit') || climateRaw.includes('zone 9') || climateRaw.includes('zone 10')
+                ? 'mediterraneen'
+                : climateRaw.includes('continent') ? 'continental'
+                : climateRaw.includes('océan') || climateRaw.includes('ocean') ? 'oceanique'
+                : 'tempere'
+            const ragPrefs = {
+                style:       filters.style       || 'naturel',
+                exposition,
+                entretien:   filters.maintenance  || 'moyen',
+                description: filters.description  || '',
+                climat,
+                taille:      'moyen',
+                budget:      'moyen',
+                region:      projectContext?.location?.short_label || 'France',
+                usda_zone:   plantFilter?.usda_zone   || null,
+                temp_min:    plantFilter?.temp_min_local || null,
+                n_plants:    6,
+            }
+            try {
+                const ragRes = await fetch(`${API_URL}/api/rag/recommend`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(mockRag),
+                    body: JSON.stringify(ragPrefs),
                 })
+                if (!ragRes.ok) console.warn('[RAG] Avertissement:', await ragRes.text())
+                else console.log('[RAG] Plantes chargées ✓')
+            } catch (ragErr) {
+                console.warn('[RAG] Erreur (génération continue sans RAG):', ragErr.message)
             }
 
             const response = await fetch(`${API_URL}/api/project/generate-image`, {

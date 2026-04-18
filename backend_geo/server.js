@@ -13,7 +13,7 @@ import express from "express";
 import cors from "cors";
 import NodeCache from "node-cache";
 import "dotenv/config";
-import { writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync } from "fs";
 import multer from "multer";
 import { exec } from "child_process";
 import path from "path";
@@ -65,6 +65,10 @@ const PYTHON_PATH = "python"; // Assurez-vous que python est dans le PATH
 // ─── CONFIGURATION GÉNÉRATION IMAGE IA (garden_ia_3) ─────────────────────────
 const GARDEN_IA_3_ROOT = "C:/Users/anton/Documents/PGE2/Clinique de l'IA/S2/zone/final/garden_ia_3";
 const GARDEN_CLI_SCRIPT = path.join(GARDEN_IA_3_ROOT, "generate_garden_cli.py");
+
+// ─── CONFIGURATION RAG ────────────────────────────────────────────────────────
+const RAG_ROOT = "C:/Users/anton/Documents/PGE2/Clinique de l'IA/S2/Backend_RAG/rag_immage";
+const RAG_CLI_SCRIPT = path.join(RAG_ROOT, "rag_cli.py");
 
 // Créer les dossiers nécessaires
 if (!existsSync("./uploads")) mkdirSync("./uploads");
@@ -520,7 +524,7 @@ app.post("/api/project/analyze", async (req, res) => {
   execAsync(cmd, { 
     cwd: SAM_DEPTH_ROOT,
     env: { ...process.env, PYTHONUTF8: "1" },
-    timeout: 15 * 60 * 1000,
+    timeout: 25 * 60 * 1000,
     maxBuffer: 200 * 1024 * 1024,
   }).then(({ stdout, stderr }) => {
     if (stderr) console.warn(`[ANALYSE ${jobId} STDERR]`, stderr.substring(0, 500));
@@ -604,6 +608,72 @@ app.get("/api/work-files", (req, res) => {
 });
 
 // ─── ROUTE : RÉCEPTION RÉSULTAT RAG ─────────────────────────────────────────
+// POST /api/rag/recommend
+// Appelle rag_cli.py avec les préférences utilisateur → génère work/rag_output.json
+// Body: { style, exposition, entretien, description, climat, taille, budget, n_plants }
+app.post("/api/rag/recommend", async (req, res) => {
+  const prefs = {
+    style:       req.body.style       || "naturel",
+    exposition:  req.body.exposition  || "plein_soleil",
+    entretien:   req.body.entretien   || "moyen",
+    description: req.body.description || "",
+    climat:      req.body.climat      || "tempere",
+    taille:      req.body.taille      || "moyen",
+    budget:      req.body.budget      || "moyen",
+    region:      req.body.region      || "France",
+    n_plants:    parseInt(req.body.n_plants) || 6,
+  };
+
+  // Écrire les préférences dans un fichier temp (exec ne supporte pas stdin)
+  const prefsPath = path.join(WORK_DIR, "_rag_prefs_tmp.json");
+  writeFileSync(prefsPath, JSON.stringify(prefs), "utf-8");
+
+  const cmd = [
+    `"${PYTHON_PATH}"`,
+    `"${RAG_CLI_SCRIPT}"`,
+    `--prefs "${prefsPath}"`,
+    `--n-plants ${prefs.n_plants}`,
+  ].join(" ");
+
+  console.log(`\n🌿 [RAG] Appel rag_cli.py — style=${prefs.style} expo=${prefs.exposition}`);
+
+  try {
+    const { stdout, stderr } = await execAsync(cmd, {
+      cwd: RAG_ROOT,
+      env: { ...process.env, PYTHONUTF8: "1" },
+      timeout: 30 * 1000,
+    });
+    unlinkSync(prefsPath);
+
+    if (stderr) console.warn("[RAG STDERR]", stderr.substring(0, 400));
+
+    let ragData;
+    try {
+      ragData = JSON.parse(stdout.trim());
+    } catch {
+      throw new Error(`JSON invalide depuis rag_cli.py: ${stdout.substring(0, 200)}`);
+    }
+
+    if (ragData.error) {
+      return res.status(500).json({ error: ragData.error });
+    }
+
+    // Sauvegarder dans work/rag_output.json (lu par generate_garden_cli.py)
+    mkdirSync(WORK_DIR, { recursive: true });
+    const outPath = path.join(WORK_DIR, "rag_output.json");
+    writeFileSync(outPath, JSON.stringify(ragData, null, 2), "utf-8");
+
+    const plantCount = (ragData.jardin || []).length;
+    console.log(`✅ [RAG] ${plantCount} plantes → work/rag_output.json`);
+
+    res.json({ status: "ok", plant_count: plantCount, plants: ragData.jardin });
+  } catch (err) {
+    console.error("❌ [RAG ERROR]", err.message);
+    res.status(500).json({ error: "Erreur rag_cli.py", details: err.message });
+  }
+});
+
+
 // POST /api/project/rag-output
 // Reçoit le JSON de plantes recommandées (produit par le RAG collègue ou mock)
 // et le sauvegarde dans work/rag_output.json pour generate_garden_cli.py
