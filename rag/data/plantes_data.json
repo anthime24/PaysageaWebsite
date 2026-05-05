@@ -319,7 +319,7 @@
             "detecte_en_pot": "pleine terre"
         }
     }
-][
+,
     {
         "id": "21",
         "nom": "Achillea millefolium",
@@ -920,7 +920,7 @@
             "detecte_en_pot": "Pot"
         }
     }
-][
+,
     {
         "id": "51",
         "nom": "Aloe striatula",
@@ -1521,7 +1521,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "81",
         "nom": "Arbutus x andrachnoides",
@@ -2322,7 +2322,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "121",
         "nom": "Asclepia curassivica",
@@ -2923,7 +2923,7 @@
             "detecte_en_pot": "Pot ou jardinière"
         }
     }
-][
+,
     {
         "id": "151",
         "nom": "Begonia semperflorens",
@@ -3924,7 +3924,7 @@
             "detecte_en_pot": "Pot"
         }
     }
-][
+,
     {
         "id": "201",
         "nom": "Buxus microphylla boule",
@@ -4925,7 +4925,7 @@
             "detecte_en_pot": "Pot ou jardinière"
         }
     }
-][
+,
     {
         "id": "251",
         "nom": "Catharanthus roseus",
@@ -5926,7 +5926,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "301",
         "nom": "Cistus creticus 'ano moulia'",
@@ -7927,7 +7927,7 @@
             "detecte_en_pot": "Pot ou pleine terre (Sud)"
         }
     }
-][
+,
     {
         "id": "401",
         "nom": "Citrus aurantium",
@@ -9928,7 +9928,7 @@
             "detecte_en_pot": "Pot"
         }
     }
-][
+,
     {
         "id": "501",
         "nom": "Dipladenia sanderi 'rio deep red'",
@@ -11929,7 +11929,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "601",
         "nom": "Ficus pumila",
@@ -13930,7 +13930,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "701",
         "nom": "Hydrangea quercifolia",
@@ -15931,7 +15931,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "801",
         "nom": "Lavandula x intermedia 'jaubert'",
@@ -17932,7 +17932,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "901",
         "nom": "Nepeta x faassenii 'walker's low'",
@@ -19933,7 +19933,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "901",
         "nom": "Nepeta x faassenii 'walker's low'",
@@ -21934,7 +21934,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "1001",
         "nom": "Phlomis lanata 'pigmy'",
@@ -23935,7 +23935,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "1101",
         "nom": "Pyrus communis",
@@ -25936,7 +25936,7 @@
             "detecte_en_pot": "Pleine terre (Littoral chaud) ou Pot"
         }
     }
-][
+,
     {
         "id": "1201",
         "nom": "Salvia 'allen chickering'",
@@ -27937,7 +27937,7 @@
             "detecte_en_pot": "Pleine terre ou pot"
         }
     }
-][
+,
     {
         "id": "1301",
         "nom": "Sedum acre",
@@ -29938,7 +29938,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "1401",
         "nom": "Teucrium marum",
@@ -31619,7 +31619,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "1767",
         "nom": "Ligustrum ionandrum",
@@ -33620,7 +33620,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "2052",
         "nom": "Heuchera americana 'marvelous marble'",
@@ -35061,7 +35061,7 @@
             "detecte_en_pot": "Pot ou rocaille aride"
         }
     }
-][
+,
     {
         "id": "2267",
         "nom": "Abelia grandiflora",
@@ -35562,7 +35562,7 @@
             "detecte_en_pot": "Pot ou pleine terre (acide)"
         }
     }
-][
+,
     {
         "id": "2321",
         "nom": "Acanthus mollis",
@@ -36863,7 +36863,7 @@
             "detecte_en_pot": "Pleine terre"
         }
     }
-][
+,
     {
         "id": "2402",
         "nom": "Pilocereus lanatus (Espostoa lanata)",
@@ -37984,7 +37984,7 @@
             "detecte_en_pot": "Muret ou rocaille"
         }
     }
-][
+,
     {
         "id": "2753",
         "nom": "Mentha spicata",
@@ -39024,8 +39024,7 @@
             "taille_estimee_ia": "Moyenne (60cm)",
             "detecte_en_pot": "Pot"
         }
-    }
-[
+    },
     {
         "id": "6266",
         "nom": "Kolkwitzia amabilis pink cloud",
@@ -39286,8 +39285,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "7002",
         "nom": "Weigela 'red prince'",
@@ -39908,8 +39906,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "7045",
         "nom": "Cupressocyparis leylandii 2001",
@@ -40690,8 +40687,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "7136",
         "nom": "Syagrus romanzoffiana",
@@ -41052,8 +41048,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "7157",
         "nom": "Prunus cerasifera var. pissardii",
@@ -41634,8 +41629,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "7190",
         "nom": "Beta vulgaris \"cicla\"",
@@ -42036,8 +42030,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "7210",
         "nom": "Copie de \"hydrangea arborescens 'annabelle'\"",
@@ -42738,8 +42731,7 @@
             "detecte_en_pot": "pot"
         }
     }
-]
-[
+,
     {
         "id": "7245",
         "nom": "Aquilegia flabelatta",
@@ -43680,8 +43672,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "7300",
         "nom": "Primula",
@@ -44962,8 +44953,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "8085",
         "nom": "Robinia pseudoacacia",
@@ -45944,8 +45934,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "8185",
         "nom": "Abutilon sp",
@@ -46926,8 +46915,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "8251",
         "nom": "Sarracenia dracula",
@@ -48248,8 +48236,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "8369",
         "nom": "Centaurea bella",
@@ -48750,8 +48737,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "8398",
         "nom": "Acalypha wilkesiana",
@@ -49792,8 +49778,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "8369",
         "nom": "Centaurea bella",
@@ -50814,8 +50799,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "8251",
         "nom": "Sarracenia dracula",
@@ -52876,8 +52860,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "1589",
         "nom": "Terre végétale",
@@ -53578,8 +53561,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "1787",
         "nom": "Fontaine hexagonale",
@@ -54520,8 +54502,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "2183",
         "nom": "Abri poubelle double",
@@ -55002,8 +54983,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "2218",
         "nom": "Galet 2",
@@ -56104,8 +56084,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "2183",
         "nom": "Abri poubelle double",
@@ -56586,8 +56565,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "2218",
         "nom": "Galet 2",
@@ -57688,8 +57666,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "8123",
         "nom": "Bordure traverse",
@@ -58330,8 +58307,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "1516",
         "nom": "Pot cycas strié",
@@ -58912,8 +58888,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "1548",
         "nom": "Pot à rinceaux",
@@ -59414,8 +59389,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "1573",
         "nom": "Soucoupe",
@@ -59556,8 +59530,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "1608",
         "nom": "Pot cycas lisse",
@@ -60358,8 +60331,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "1573",
         "nom": "Soucoupe",
@@ -60620,8 +60592,7 @@
             "detecte_en_pot": "pot"
         }
     }
-]
-[
+,
     {
         "id": "1927",
         "nom": "Lanterne japonaise",
@@ -61182,8 +61153,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "1927",
         "nom": "Lanterne japonaise",
@@ -61444,8 +61414,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "1927",
         "nom": "Lanterne japonaise",
@@ -61746,8 +61715,7 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-[
+,
     {
         "id": "7017",
         "nom": "Luminaire inox",
@@ -62068,6 +62036,4 @@
             "detecte_en_pot": "unknown"
         }
     }
-]
-
 ]
